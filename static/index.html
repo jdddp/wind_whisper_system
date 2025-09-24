@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wind Whisper RAG System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+        }
+        .main-content {
+            min-height: 100vh;
+        }
+        .chat-container {
+            height: 70vh;
+            overflow-y: auto;
+        }
+        .message {
+            margin-bottom: 1rem;
+        }
+        .message.user {
+            text-align: right;
+        }
+        .message.assistant {
+            text-align: left;
+        }
+        .message-bubble {
+            display: inline-block;
+            max-width: 70%;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+        }
+        .message.user .message-bubble {
+            background-color: #007bff;
+            color: white;
+        }
+        .message.assistant .message-bubble {
+            background-color: #e9ecef;
+            color: #333;
+        }
+        .source-item {
+            border-left: 3px solid #007bff;
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* 时间线布局样式 */
+        .timeline-container {
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            margin-bottom: 1rem;
+        }
+        
+        .timeline-header {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            border-radius: 0.375rem 0.375rem 0 0;
+        }
+        
+        .timeline-content {
+            padding: 1rem;
+        }
+        
+        .intelligent-summary {
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .summary-section {
+            margin-bottom: 1rem;
+        }
+        
+        .summary-section h6 {
+            color: #1976d2;
+            margin-bottom: 0.5rem;
+        }
+        
+        .timeline-events-toggle {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .timeline-events-toggle:hover {
+            background-color: #e9ecef;
+        }
+        
+        .timeline-events-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+        }
+        
+        .timeline-event-item {
+            border-left: 3px solid #007bff;
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        
+        .timeline-event-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .event-severity-high {
+            border-left-color: #dc3545;
+        }
+        
+        .event-severity-medium {
+            border-left-color: #ffc107;
+        }
+        
+        .event-severity-low {
+            border-left-color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 侧边栏 -->
+            <div class="col-md-3 sidebar p-3">
+                <h4 class="mb-4">
+                    <i class="bi bi-wind"></i>
+                    Wind Whisper
+                </h4>
+                
+                <!-- 导航菜单 -->
+                <ul class="nav nav-pills flex-column mb-4">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" onclick="showSection('dashboard')">
+                            <i class="bi bi-speedometer2"></i> 驾驶舱
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('rag')">
+                            <i class="bi bi-chat-dots"></i> RAG问答
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('timeline')">
+                            <i class="bi bi-clock-history"></i> 时间线
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('expert-logs')">
+                            <i class="bi bi-journal-text"></i> 专家记录
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('turbines')">
+                            <i class="bi bi-gear"></i> 风机管理
+                        </a>
+                    </li>
+                </ul>
+                
+                <!-- 用户信息 -->
+                <div class="mt-auto">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">用户信息</h6>
+                            <p class="card-text" id="user-info">未登录</p>
+                            <button class="btn btn-sm btn-primary" onclick="showLogin()">登录</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 主内容区 -->
+            <div class="col-md-9 main-content p-4">
+                <!-- 驾驶舱 -->
+                <div id="dashboard-section" class="content-section">
+                    <h2>驾驶舱</h2>
+                    
+                    <!-- 核心统计 -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h5 class="card-title">风机总数</h5>
+                                    <h3 class="text-primary" id="total-turbines">-</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h5 class="card-title">专家记录总数</h5>
+                                    <h3 class="text-info" id="total-expert-logs">-</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h5 class="card-title">告警机组数</h5>
+                                    <h3 class="text-danger" id="alarm-turbines-count">-</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 状态分布 -->
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="bi bi-pie-chart"></i> 专家记录状态分布</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="status-distribution">
+                                        <p class="text-muted">加载中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 告警机组列表 -->
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="bi bi-exclamation-triangle text-danger"></i> 告警机组</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="alarm-turbines">
+                                        <p class="text-muted">加载中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>最近活动</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="recent-activities">
+                                <p class="text-muted">加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- RAG问答 -->
+                <div id="rag-section" class="content-section" style="display: none;">
+                    <h2>RAG问答</h2>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5>对话</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="chat-container" class="chat-container mb-3">
+                                        <div class="message assistant">
+                                            <div class="message-bubble">
+                                                您好！我是Wind Whisper智能助手，可以帮您查询风机监测记录和专家经验。请输入您的问题。
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="input-group">
+                                        <select class="form-select" id="chat-turbine-filter" style="max-width: 200px;">
+                                            <option value="">所有风机</option>
+                                        </select>
+                                        <input type="text" class="form-control" id="question-input" 
+                                               placeholder="请输入您的问题..." onkeypress="handleEnter(event)">
+                                        <button class="btn btn-primary" onclick="askQuestion()">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5>相关来源</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="sources-container">
+                                        <p class="text-muted">提问后将显示相关来源</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 时间线 -->
+                <div id="timeline-section" class="content-section" style="display: none;">
+                    <h2>风机时间线总览</h2>
+                    <p class="text-muted">基于专家记录智能生成的风机监测事件时间线，按状态优先级排序</p>
+                    
+                    <!-- 过滤控制栏 -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">风机选择</label>
+                                    <select class="form-select" id="timeline-turbine-filter" onchange="loadTimeline()">
+                                        <option value="">请选择风机</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">风机搜索</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text" class="form-control" id="turbine-search-input" 
+                                               placeholder="搜索风机名称或编号..." onkeyup="filterTurbines()">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">状态过滤</label>
+                                    <select class="form-select" id="turbine-status-filter" onchange="filterTurbines()">
+                                        <option value="">全部状态</option>
+                                        <option value="Alarm">告警</option>
+                                        <option value="Watch">观察</option>
+                                        <option value="Maintenance">维护</option>
+                                        <option value="Normal">正常</option>
+                                        <option value="Unknown">未知</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">操作</label>
+                                    <div class="d-grid">
+                                        <button class="btn btn-outline-secondary btn-sm" onclick="batchUpdateTimelines()" title="批量更新所有风机时间线">
+                                            <i class="bi bi-arrow-repeat"></i> 批量更新
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 单个风机时间线显示 -->
+                    <div id="timeline-container" style="display: none;">
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-clock-history" style="font-size: 3rem;"></i>
+                            <p class="mt-3">请选择风机查看时间线</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 风机时间线列表 -->
+                    <div id="turbines-timeline-container">
+                        <div class="text-center text-muted py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-3">正在加载风机时间线...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 专家记录管理 -->
+                <div id="expert-logs-section" class="content-section" style="display: none;">
+                    <h2>专家记录管理</h2>
+                    
+                    <div class="row mb-3">
+                        <div class="col-lg-3 col-md-4 mb-2 mb-md-0">
+                            <button class="btn btn-primary" onclick="showAddExpertLogModal()">
+                                <i class="bi bi-plus"></i> 添加记录
+                            </button>
+                        </div>
+                        <div class="col-lg-9 col-md-8">
+                            <div class="d-flex flex-column flex-md-row justify-content-end align-items-start align-items-md-center gap-2 gap-md-3">
+                                <div class="d-flex align-items-center w-100 w-md-auto">
+                                    <label for="turbine-filter" class="form-label me-2 mb-0 text-nowrap">风机:</label>
+                                    <select class="form-select flex-grow-1" id="turbine-filter" style="min-width: 150px;" onchange="filterExpertLogs()">
+                                        <option value="all">全部风机</option>
+                                    </select>
+                                </div>
+                                <div class="d-flex align-items-center w-100 w-md-auto">
+                                    <label for="timeline-status-filter" class="form-label me-2 mb-0 text-nowrap">时间线状态:</label>
+                                    <select class="form-select flex-grow-1" id="timeline-status-filter" style="min-width: 120px;" onchange="filterExpertLogs()">
+                                        <option value="all">全部记录</option>
+                                        <option value="published">已发布时间线</option>
+                                        <option value="unpublished">未发布时间线</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div id="expert-logs-table">
+                                <p class="text-muted">加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 风机管理 -->
+                <div id="turbines-section" class="content-section" style="display: none;">
+                    <h2>风机管理</h2>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-primary" onclick="showAddTurbineModal()">
+                            <i class="bi bi-plus"></i> 添加风机
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div id="turbines-table">
+                                <p class="text-muted">加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 登录模态框 -->
+    <div class="modal fade" id="loginModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">用户登录</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">用户名</label>
+                            <input type="text" class="form-control" id="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">密码</label>
+                            <input type="password" class="form-control" id="password" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="login()">登录</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加风机模态框 -->
+    <div class="modal fade" id="addTurbineModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加风机</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="turbineForm">
+                        <div class="mb-3">
+                            <label for="farm_name" class="form-label">风场名称 *</label>
+                            <input type="text" class="form-control" id="farm_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="unit_id" class="form-label">机组编号 *</label>
+                            <input type="text" class="form-control" id="unit_id" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="model" class="form-label">机型</label>
+                            <input type="text" class="form-control" id="model">
+                        </div>
+                        <div class="mb-3">
+                            <label for="owner_company" class="form-label">业主公司</label>
+                            <input type="text" class="form-control" id="owner_company">
+                        </div>
+                        <div class="mb-3">
+                            <label for="install_date" class="form-label">安装日期</label>
+                            <input type="date" class="form-control" id="install_date">
+                        </div>
+                        <div class="mb-3">
+                            <label for="status" class="form-label">状态</label>
+                            <select class="form-select" id="status">
+                                <option value="">请选择状态</option>
+                                <option value="Normal">正常</option>
+                                <option value="Watch">观察</option>
+                                <option value="Alarm">告警</option>
+                                <option value="Maintenance">维护</option>
+                                <option value="Unknown">未知</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="createTurbine()">添加</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑风机模态框 -->
+    <div class="modal fade" id="editTurbineModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">编辑风机</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editTurbineForm">
+                        <input type="hidden" id="edit_turbine_id">
+                        <div class="mb-3">
+                            <label for="edit_farm_name" class="form-label">风场名称 *</label>
+                            <input type="text" class="form-control" id="edit_farm_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_unit_id" class="form-label">机组编号 *</label>
+                            <input type="text" class="form-control" id="edit_unit_id" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_model" class="form-label">机型</label>
+                            <input type="text" class="form-control" id="edit_model">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_owner_company" class="form-label">业主公司</label>
+                            <input type="text" class="form-control" id="edit_owner_company">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_install_date" class="form-label">安装日期</label>
+                            <input type="date" class="form-control" id="edit_install_date">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_status" class="form-label">状态</label>
+                            <select class="form-select" id="edit_status">
+                                <option value="">请选择状态</option>
+                                <option value="Normal">正常</option>
+                                <option value="Watch">观察</option>
+                                <option value="Alarm">告警</option>
+                                <option value="Maintenance">维护</option>
+                                <option value="Unknown">未知</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="updateTurbine()">保存更改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加专家记录模态框 -->
+    <div class="modal fade" id="addExpertLogModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">添加专家记录</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="expertLogForm">
+                        <div class="mb-3">
+                            <label for="log-turbine-id" class="form-label">风机</label>
+                            <select class="form-select" id="log-turbine-id" required>
+                                <option value="">请选择风机</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="log-status-tag" class="form-label">状态标签</label>
+                            <select class="form-select" id="log-status-tag" required>
+                                <option value="">请选择状态</option>
+                                <option value="Normal">正常</option>
+                                <option value="Alarm">告警</option>
+                                <option value="Watch">观察</option>
+                                <option value="Maintenance">维护</option>
+                                <option value="Unknown">未知</option>
+                            </select>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> 
+                                选择的状态将同时更新对应风机的状态，确保驾驶舱和风机管理显示最新状态
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="log-description" class="form-label">描述内容 *</label>
+                            <textarea class="form-control" id="log-description" rows="4" required 
+                                      placeholder="请输入专家记录的详细描述..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="log-attachments" class="form-label">附件</label>
+                            <input type="file" class="form-control" id="log-attachments" multiple 
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.mp3,.wav,.ogg,.mp4,.avi,.mov"
+                                   onchange="previewAttachments()">
+                            <div class="form-text">
+                                支持的文件类型：PDF、Word、Excel、文本、图片、音频、视频文件（最大50MB）
+                            </div>
+                            <div id="attachment-preview" class="mt-2">
+                                <!-- 附件预览 -->
+                            </div>
+                        </div>
+                        
+
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="createExpertLog()">创建记录</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 专家记录详情模态框 -->
+    <div class="modal fade" id="expertLogDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">专家记录详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="expert-log-detail-content">
+                        <!-- 记录详情内容 -->
+                    </div>
+                    
+                    <!-- AI分析区域 -->
+                    <div id="ai-analysis-section" class="mt-4" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-robot"></i> AI分析
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- 文件选择区域 -->
+                                <div id="file-selection-area" class="mb-3">
+                                    <label class="form-label">选择要分析的文件：</label>
+                                    <div id="available-files-list" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                        <!-- 可选择的文件列表 -->
+                                    </div>
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-primary" onclick="performAIAnalysis()">
+                                            <i class="bi bi-cpu"></i> 开始AI分析
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- AI分析结果区域 -->
+                                <div id="ai-analysis-results" style="display: none;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label mb-0">AI分析结果：</label>
+                                        <div>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="editAIAnalysis()">
+                                                <i class="bi bi-pencil"></i> 编辑
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-success" onclick="applyAIAnalysis()">
+                                                <i class="bi bi-check"></i> 应用到记录
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="ai-analysis-display">
+                                        <!-- AI分析结果显示 -->
+                                    </div>
+                                    <div id="ai-analysis-edit" style="display: none;">
+                                        <textarea class="form-control" id="ai-analysis-editor" rows="8" 
+                                                  placeholder="编辑AI分析结果..."></textarea>
+                                        <div class="mt-2">
+                                            <button type="button" class="btn btn-sm btn-success" onclick="saveAIAnalysis()">
+                                                <i class="bi bi-check"></i> 保存
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-secondary" onclick="cancelAIAnalysisEdit()">
+                                                <i class="bi bi-x"></i> 取消
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 内容编辑区域 -->
+                    <div id="content-edit-section" class="mt-4" style="display: none;">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">编辑记录内容</h6>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelContentEdit()">
+                                    <i class="bi bi-x"></i> 取消编辑
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="edit-description" class="form-label">描述内容</label>
+                                    <textarea class="form-control" id="edit-description" rows="6" 
+                                              placeholder="编辑专家记录的描述内容..."></textarea>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-success" onclick="saveContentEdit()">
+                                        <i class="bi bi-check"></i> 保存修改
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" onclick="cancelContentEdit()">
+                                        <i class="bi bi-x"></i> 取消
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 附件管理区域 -->
+                    <div class="mt-4">
+                        <h6>附件管理</h6>
+                        <div class="mb-3">
+                            <input type="file" class="form-control" id="attachment-file" 
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.mp3,.wav,.ogg,.mp4,.avi,.mov">
+                            <div class="form-text">
+                                支持的文件类型：PDF、Word、Excel、文本、图片、音频、视频文件（最大50MB）
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-success" onclick="uploadAttachment()">
+                            <i class="bi bi-upload"></i> 上传附件
+                        </button>
+                        
+                        <div class="mt-3">
+                            <h6>已上传附件</h6>
+                            <div id="attachments-list">
+                                <!-- 附件列表 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="toggleContentEdit()" id="edit-content-btn" style="display: none;">
+                        <i class="bi bi-pencil"></i> 编辑内容
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="viewRevisionHistory()" id="revision-history-btn" style="display: none;">
+                        <i class="bi bi-clock-history"></i> 修改历史
+                    </button>
+
+                    <button type="button" class="btn btn-success" onclick="createTimelineEventFromLog()" id="create-timeline-btn" style="display: none;">
+                        <i class="bi bi-plus-circle"></i> 创建时间线事件
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 时间线事件编辑模态框 -->
+    <div class="modal fade" id="timelineEditModal" tabindex="-1" aria-labelledby="timelineEditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="timelineEditModalLabel">
+                        <i class="bi bi-pencil-square"></i> 编辑时间线事件
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="timelineEditForm">
+                        <input type="hidden" id="edit-event-id">
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="edit-event-time" class="form-label">事件时间</label>
+                                <input type="datetime-local" class="form-control" id="edit-event-time" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit-event-type" class="form-label">事件类型</label>
+                                <select class="form-select" id="edit-event-type" required>
+                                    <option value="">请选择事件类型</option>
+                                    <option value="NORMAL">正常</option>
+                                    <option value="ALARM">告警</option>
+                                    <option value="WATCH">观察</option>
+                                    <option value="MAINTENANCE">维护</option>
+                                    <option value="UNKNOWN">未知</option>
+                                    <option value="OTHER">其他</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="edit-event-severity" class="form-label">严重程度</label>
+                                <select class="form-select" id="edit-event-severity" required>
+                                    <option value="">请选择严重程度</option>
+                                    <option value="NORMAL">正常</option>
+                                    <option value="LOW">低</option>
+                                    <option value="MEDIUM">中</option>
+                                    <option value="HIGH">高</option>
+                                    <option value="CRITICAL">严重</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit-confidence-score" class="form-label">置信度</label>
+                                <input type="number" class="form-control" id="edit-confidence-score" min="0" max="1" step="0.01" placeholder="0.00-1.00">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="edit-event-title" class="form-label">事件标题</label>
+                            <input type="text" class="form-control" id="edit-event-title" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="edit-event-summary" class="form-label">事件摘要</label>
+                            <textarea class="form-control" id="edit-event-summary" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="edit-key-points" class="form-label">关键点</label>
+                            <textarea class="form-control" id="edit-key-points" rows="4" placeholder="每行一个关键点"></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="edit-ai-generated" class="form-label">AI生成内容</label>
+                            <textarea class="form-control" id="edit-ai-generated" rows="3" readonly></textarea>
+                            <div class="form-text">此字段为只读，显示原始AI生成的内容</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-info" onclick="generateTimelineEventWithAI()" id="ai-generate-event-btn" style="display: none;">
+                        <i class="bi bi-robot"></i> AI生成内容
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="deleteTimelineEvent()" id="delete-event-btn">
+                        <i class="bi bi-trash"></i> 删除事件
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="saveTimelineEvent()">
+                        <i class="bi bi-check-lg"></i> 保存修改
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 智能总结模态框 -->
+    <div class="modal fade" id="intelligentSummaryModal" tabindex="-1" aria-labelledby="intelligentSummaryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="intelligentSummaryModalLabel">
+                        <i class="bi bi-lightbulb"></i> 风机智能总结
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="summary-loading" class="text-center py-4" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">生成中...</span>
+                        </div>
+                        <p class="mt-3">正在生成智能总结，请稍候...</p>
+                    </div>
+                    
+                    <div id="summary-content" style="display: none;">
+                        <!-- 风机基本信息 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-info-circle"></i> 风机信息</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>风机名称：</strong> <span id="summary-turbine-name"></span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>分析时间段：</strong> <span id="summary-period"></span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>专家记录数：</strong> <span id="summary-total-records"></span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>生成时间：</strong> <span id="summary-generated-at"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 总体状况摘要 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-file-text"></i> 总体状况摘要</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="summary-text" class="text-muted">
+                                    <!-- AI生成的总结内容 -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 统计数据 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-bar-chart"></i> 统计数据</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <div class="h4 text-primary" id="maintenance-count">0</div>
+                                            <small class="text-muted">维护记录</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <div class="h4 text-danger" id="fault-count">0</div>
+                                            <small class="text-muted">故障记录</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <div class="h4 text-info" id="inspection-count">0</div>
+                                            <small class="text-muted">检查记录</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <div class="h6 text-success" id="status-trend">稳定</div>
+                                            <small class="text-muted">状态趋势</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 关键洞察 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-eye"></i> 关键洞察</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul id="key-insights-list" class="list-unstyled">
+                                    <!-- 关键洞察列表 -->
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <!-- 维护建议 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-lightbulb"></i> 维护建议</h6>
+                            </div>
+                            <div class="card-body">
+                                <ul id="recommendations-list" class="list-unstyled">
+                                    <!-- 建议列表 -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="summary-error" class="alert alert-danger" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <span id="summary-error-message">生成智能总结失败</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-primary" onclick="refreshIntelligentSummary()" id="refresh-summary-btn" style="display: none;">
+                        <i class="bi bi-arrow-repeat"></i> 重新生成
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/app.js"></script>
+    <script src="/static/timeline-edit.js"></script>
+</body>
+</html>

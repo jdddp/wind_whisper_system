@@ -1,0 +1,316 @@
+# Wind Whisper RAG 系统架构文档
+
+## 项目概述
+
+Wind Whisper RAG 系统是一个基于 FastAPI 的智能风机运维系统，集成了 RAG（检索增强生成）技术，用于风机数据分析、智能问答和运维决策支持。系统采用完全本地化部署，使用开源模型，确保数据安全和离线运行能力。
+
+## 系统架构层级
+
+```
+wind_whisper_rag_system-debug/
+├── 🏗️ 基础设施层 (Infrastructure Layer)
+├── 🔧 配置层 (Configuration Layer)  
+├── 📊 数据层 (Data Layer)
+├── 🧠 业务逻辑层 (Business Logic Layer)
+├── 🌐 API接口层 (API Layer)
+├── 🎨 表现层 (Presentation Layer)
+├── 🧪 测试层 (Testing Layer)
+└── 📚 文档层 (Documentation Layer)
+```
+
+## 详细目录结构与职责
+
+### 🏗️ 基础设施层 (Infrastructure Layer)
+
+#### 容器化配置
+```
+├── Dockerfile                    # Docker镜像构建配置
+├── .dockerignore               # Docker构建忽略文件
+└── quick_deploy.sh              # 快速部署脚本
+```
+
+**职责说明：**
+- `Dockerfile`: 定义应用运行环境，包括Python版本、依赖安装、工作目录设置
+- `.dockerignore`: 排除不必要的文件进入Docker镜像，减小镜像体积
+- `quick_deploy.sh`: 自动化部署流程，简化系统启动和配置过程
+
+#### 进程管理
+```
+├── supervisord.log              # 进程管理日志
+└── supervisord.pid              # 进程管理PID文件
+```
+
+### 🔧 配置层 (Configuration Layer)
+
+#### 环境配置
+```
+├── .env                         # 生产环境变量配置
+├── .env.example                 # 环境变量模板
+└── alembic.ini                  # 数据库迁移配置
+```
+
+**职责说明：**
+- `.env`: 存储配置信息（数据库连接、JWT密钥、模型路径等）
+- `.env.example`: 为新开发者提供配置模板
+- `alembic.ini`: 配置数据库迁移工具参数
+
+### 📊 数据层 (Data Layer)
+
+#### 数据库管理
+```
+├── alembic/                     # 数据库迁移管理
+│   └── env.py                   # Alembic环境配置
+├── migrations/                  # 数据库迁移历史
+├── database/                    # 数据库初始化
+│   └── init/                    # 初始化脚本目录
+└── models/                      # 数据模型定义
+    └── user.py                  # 用户数据模型
+```
+
+**逻辑关系：**
+```
+数据库设计 → 模型定义 → 迁移脚本 → 数据库更新
+    ↓           ↓          ↓          ↓
+  Schema    models/    alembic/   migrations/
+```
+
+#### 文件存储
+```
+├── uploads/                     # 用户上传文件存储
+├── ai_models/                   # 本地AI模型文件存储
+│   ├── Qwen2.5-0.5B-Instruct/  # 本地语言模型
+│   └── bge-m3/                  # 本地嵌入模型
+└── static/                      # 静态资源文件
+    └── app.js                   # 前端JavaScript
+```
+
+#### 第三方组件
+```
+└── pgvector/                    # PostgreSQL向量扩展源码
+    ├── sql/                     # SQL脚本
+    ├── src/                     # C源代码
+    └── test/                    # 测试文件
+```
+
+### 🧠 业务逻辑层 (Business Logic Layer)
+
+#### 核心服务
+```
+├── services/                    # 业务服务层
+│   ├── embedding_service.py     # 向量嵌入服务 (BGE-M3)
+│   ├── llm_service.py          # 大语言模型服务 (Qwen2.5)
+│   └── rag_service.py          # RAG检索服务
+```
+
+**服务层职责：**
+- `embedding_service.py`: 使用BGE-M3模型处理文本向量化和相似度计算
+- `llm_service.py`: 使用Qwen2.5-0.5B-Instruct模型进行文本生成
+- `rag_service.py`: 实现检索增强生成的核心逻辑
+
+#### 工具模块
+```
+└── utils/                       # 工具函数模块
+    └── auth.py                  # 认证工具函数
+```
+
+#### 数据验证
+```
+└── schemas/                     # 数据验证模式
+    ├── auth.py                  # 认证相关数据模式
+    └── rag.py                   # RAG相关数据模式
+```
+
+**逻辑关系：**
+```
+API请求 → Schema验证 → Service处理 → Model操作 → 数据库
+    ↓         ↓           ↓          ↓         ↓
+  输入验证   数据格式    业务逻辑    数据持久化  存储
+```
+
+### 🌐 API接口层 (API Layer)
+
+```
+├── main.py                      # FastAPI应用入口
+└── api/                         # API路由模块
+    ├── __init__.py
+    ├── auth.py                  # 认证API端点
+    ├── llm.py                   # 大语言模型API端点
+    ├── rag.py                   # RAG功能API端点
+    ├── timeline.py              # 时间线API端点
+    └── turbines.py              # 风机管理API端点
+```
+
+**API层职责：**
+- `main.py`: 应用启动入口，中间件配置，路由注册
+- `auth.py`: 用户登录、注册、token验证
+- `llm.py`: 本地大语言模型对话接口
+- `rag.py`: 文档上传、检索、问答
+- `timeline.py`: 风机运行时间线数据
+- `turbines.py`: 风机基础信息管理
+
+**API调用流程：**
+```
+客户端请求 → 路由匹配 → 中间件处理 → 业务逻辑 → 响应返回
+     ↓          ↓          ↓          ↓          ↓
+   HTTP      api/       认证/限流    services/   JSON
+```
+
+### 🎨 表现层 (Presentation Layer)
+
+```
+└── static/                      # 静态资源
+    └── app.js                   # 前端JavaScript逻辑
+```
+
+**注意：** 当前系统主要作为API服务，前端较为简单
+
+### 🧪 测试层 (Testing Layer)
+
+```
+└── tests/                       # 测试代码目录
+    ├── README.md                # 测试说明文档
+    ├── run_all_tests.py         # 测试运行器
+    ├── test_auth.py             # 认证功能测试
+    ├── test_rag.py              # RAG功能测试
+    ├── test_system.py           # 系统基础测试
+    └── test_timeline.py         # 时间线功能测试
+```
+
+**测试层级：**
+```
+单元测试 → 集成测试 → 系统测试 → 端到端测试
+    ↓         ↓         ↓          ↓
+  函数级    模块级     服务级      用户级
+```
+
+### 📚 文档层 (Documentation Layer)
+
+```
+├── README.md                    # 项目说明文档
+├── ARCHITECTURE.md              # 架构文档（本文档）
+└── docs/                        # 详细文档目录
+    ├── 启动相关.md              # 系统启动指南
+    ├── 需求定义.md              # 需求规格说明
+    └── 需求文档.md              # 详细需求文档
+```
+
+### 🔧 运维脚本层
+
+```
+└── scripts/                     # 运维脚本
+    └── start.sh                 # 系统启动脚本
+```
+
+## 系统数据流向
+
+### 1. 用户认证流程
+```
+用户登录 → auth.py → utils/auth.py → models/user.py → 数据库验证 → JWT Token
+```
+
+### 2. RAG问答流程
+```
+用户问题 → rag.py → rag_service.py → embedding_service.py(BGE-M3) → 向量检索 
+    ↓
+数据库查询 → 相关文档 → llm_service.py(Qwen2.5) → 本地模型推理 → 生成回答
+```
+
+### 3. 文档上传流程
+```
+文件上传 → rag.py → 文件存储(uploads/) → 文本提取 → BGE-M3向量化 → pgvector存储
+```
+
+### 4. 风机数据查询流程
+```
+API请求 → timeline.py → 数据库查询 → 数据返回
+```
+
+## 开发指南
+
+### 新功能开发流程
+
+1. **数据模型设计** (`models/`)
+   - 定义数据结构
+   - 创建数据库迁移
+
+2. **API接口设计** (`api/`)
+   - 定义路由和端点
+   - 设计请求/响应格式
+
+3. **数据验证** (`schemas/`)
+   - 创建Pydantic模型
+   - 定义数据验证规则
+
+4. **业务逻辑实现** (`services/`)
+   - 实现核心业务逻辑
+   - 处理复杂计算和本地模型调用
+
+5. **测试编写** (`tests/`)
+   - 单元测试
+   - 集成测试
+
+6. **文档更新** (`docs/`)
+   - API文档
+   - 使用说明
+
+### 代码组织原则
+
+1. **单一职责原则**: 每个模块只负责一个功能领域
+2. **依赖倒置**: 高层模块不依赖低层模块，都依赖抽象
+3. **接口隔离**: 使用Schema进行数据验证和接口定义
+4. **开闭原则**: 对扩展开放，对修改封闭
+
+### 关键技术栈
+
+#### 🔧 后端技术
+- **Web框架**: FastAPI - 高性能异步Web框架
+- **ORM**: SQLAlchemy - Python SQL工具包和对象关系映射
+- **数据库**: PostgreSQL + pgvector - 支持向量操作的关系数据库
+- **认证**: JWT - JSON Web Token认证机制
+
+#### 🤖 AI技术栈（完全本地化）
+- **语言模型**: Qwen2.5-0.5B-Instruct - 本地部署的轻量级中文大语言模型
+- **嵌入模型**: BGE-M3 - 本地部署的多语言文本嵌入模型
+- **向量检索**: pgvector - PostgreSQL向量相似度搜索
+- **模型框架**: Transformers + Sentence-Transformers - Hugging Face模型生态
+
+#### 🛠️ 开发工具
+- **容器化**: Docker - 应用容器化部署
+- **数据库迁移**: Alembic - SQLAlchemy数据库迁移工具
+- **进程管理**: Supervisor - 进程监控和管理
+- **测试框架**: Python unittest
+
+#### 📦 依赖管理
+- **Python包管理**: pip + requirements.txt
+- **环境隔离**: Docker容器化部署
+- **配置管理**: 环境变量 + .env文件
+
+## 部署架构
+
+### 🐳 容器化部署
+```
+Docker容器
+├── Python应用 (FastAPI)
+├── PostgreSQL数据库
+├── pgvector扩展
+└── 本地AI模型文件
+    ├── Qwen2.5-0.5B-Instruct
+    └── BGE-M3
+```
+
+### 🔄 服务编排
+- **Web服务**: FastAPI应用服务器
+- **数据库服务**: PostgreSQL + pgvector
+- **文件服务**: 静态文件和上传文件管理
+- **AI服务**: 本地模型推理服务（完全离线）
+
+### 🔒 安全特性
+- **离线部署**: 所有AI模型本地部署，无需外部API调用
+- **数据隔离**: 敏感数据完全在本地处理
+- **访问控制**: JWT认证 + 用户权限管理
+
+这个架构设计确保了系统的可维护性、可扩展性和可测试性，同时保证了数据安全和离线运行能力，为后续开发者提供了清晰的代码组织结构和开发指南。
+
+---
+
+*本文档将随着系统演进持续更新，确保架构描述与实际实现保持一致。*

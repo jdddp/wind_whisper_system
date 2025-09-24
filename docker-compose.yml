@@ -1,0 +1,111 @@
+# ============================================================================
+# Wind Whisper RAG System - Docker Compose 配置文件
+# ============================================================================
+# 
+# 功能描述：
+#   - 定义风语RAG系统的容器化部署配置
+#   - 集成PostgreSQL数据库、pgvector扩展和AI模型服务
+#   - 支持GPU加速和数据持久化
+#   - 提供开发和生产环境的统一部署方案
+# 
+# 使用方式：
+#   启动服务：docker-compose up -d
+#   停止服务：docker-compose down
+#   查看日志：docker-compose logs -f
+#   重建服务：docker-compose up --build -d
+# 
+# 环境要求：
+#   - Docker Engine 20.10+
+#   - Docker Compose 2.0+
+#   - NVIDIA Docker Runtime (GPU支持)
+#   - 至少4GB可用内存
+# 
+# 网络访问：
+#   - Web界面：http://localhost:8004
+#   - API接口：http://localhost:8004/api
+#   - 健康检查：http://localhost:8004/health
+# 
+# 作者：Wind Whisper Team
+# 版本：v1.0.0
+# 更新：2024-01-01
+# ============================================================================
+
+# Docker Compose版本声明
+# 使用3.3版本以支持GPU资源配置和现代容器特性
+version: '3.3'
+
+# ============================================================================
+# 服务定义 - 定义系统中的各个容器服务
+# ============================================================================
+services:
+  # ----------------------------------------------------------------------------
+  # 主应用服务 - Wind Whisper RAG系统核心服务
+  # ----------------------------------------------------------------------------
+  app:
+    # 镜像配置 - 使用包含pydantic-settings修复的更新镜像
+    image: wind-whisper-rag:latest-with-pydantic-settings-final
+    
+    # 容器名称 - 便于管理和日志查看
+    container_name: wind-whisper-rag-debug
+    
+    # 端口映射 - 将容器内部端口映射到主机端口
+    # 格式：主机端口:容器端口
+    ports:
+      - "8004:8003"  # Web服务端口：主机8004 -> 容器8003
+    
+    # 环境变量文件 - 从.env文件加载配置
+    env_file:
+      - .env
+    
+    # 环境变量配置 - 应用运行时的配置参数
+    environment:
+      # JWT密钥 - 用于用户认证和会话管理（生产环境请修改）
+      - JWT_SECRET_KEY=your-secret-key-change-in-production
+      
+      # OpenAI API配置 - 支持从主机环境变量读取
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}                    # API密钥
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}  # API基础URL
+      
+      # NVIDIA GPU配置 - 启用GPU加速支持
+      - NVIDIA_VISIBLE_DEVICES=all                           # 使用所有可用GPU
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility           # GPU功能权限
+    
+    # 数据卷映射 - 实现数据持久化和代码同步
+    volumes:
+      # 文件上传目录 - 用户上传的文档和附件
+      - ./data/attachments:/app/data/attachments
+      
+      # 日志目录 - 应用运行日志
+      - ./logs:/app/logs
+      
+      # AI模型文件映射（可选）- 用于本地模型文件更新
+      # 取消注释以启用本地模型文件映射
+      # - ./ai_models:/app/ai_models
+      
+      # 代码映射 - 开发模式下的实时代码同步
+      # 生产环境建议移除此映射以提高安全性
+      - .:/app
+      
+      # PostgreSQL数据持久化 - 使用命名卷确保数据安全
+      - postgres_data:/var/lib/postgresql/14/main
+    
+    # GPU资源配置 - 为AI模型推理分配GPU资源
+    # 注释掉GPU配置以避免兼容性问题
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia      # NVIDIA GPU驱动
+    #           count: all          # 使用所有可用GPU
+    #           capabilities: [gpu] # GPU计算能力
+    
+    # 重启策略 - 容器异常退出时自动重启（除非手动停止）
+    restart: unless-stopped
+
+# ============================================================================
+# 数据卷定义 - 持久化存储配置
+# ============================================================================
+volumes:
+  # PostgreSQL数据卷 - 确保数据库数据在容器重启后保持
+  postgres_data:
+    driver: local  # 使用本地存储驱动

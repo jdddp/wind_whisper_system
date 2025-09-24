@@ -1,0 +1,6 @@
+/uploads
+/ai_models/bege-m3/*
+/ai_models/Qwen2.5-0.5B-Instruct/*
+*log
+/logs
+/data

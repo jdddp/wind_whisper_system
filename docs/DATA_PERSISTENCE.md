@@ -1,0 +1,61 @@
+# 数据持久化解决方案
+
+## 问题描述
+之前每次执行 `docker-compose down` 后，风机数据信息会全部丢失。这是因为 PostgreSQL 数据库运行在容器内部，没有配置数据持久化。
+
+## 问题原因
+1. **PostgreSQL 数据库运行在容器内部**，数据存储在容器的文件系统中
+2. **没有配置数据卷映射**，容器删除时数据随之丢失
+3. **每次 `docker-compose down` 都会删除容器**，导致数据库数据丢失
+
+## 解决方案
+通过在 `docker-compose.yml` 中添加 PostgreSQL 数据持久化配置：
+
+### 修改内容
+```yaml
+services:
+  app:
+    # ... 其他配置 ...
+    volumes:
+      # ... 其他卷映射 ...
+      # PostgreSQL数据持久化 - 使用命名卷
+      - postgres_data:/var/lib/postgresql/14/main
+
+# 添加卷定义
+volumes:
+  postgres_data:
+```
+
+### 技术细节
+- **使用 Docker 命名卷**：`postgres_data:/var/lib/postgresql/14/main`
+- **数据存储位置**：`/var/lib/postgresql/14/main` (PostgreSQL 14 的默认数据目录)
+- **卷管理**：Docker 自动管理卷的权限和生命周期
+
+## 验证结果
+✅ **数据持久化成功**
+- 重启容器后数据保留
+- 风机信息不再丢失
+- 用户账户和所有业务数据都得到保护
+
+## 使用说明
+1. **正常重启**：`docker-compose restart` - 数据保留
+2. **完全重启**：`docker-compose down && docker-compose up -d` - 数据保留
+3. **数据备份**：可以通过 Docker 卷备份数据
+4. **数据清理**：如需清理数据，需要手动删除卷：`docker volume rm wind_whisper_rag_system_postgres_data`
+
+## 注意事项
+- 数据卷会持续存在，即使删除容器也不会丢失
+- 如果需要完全重置数据库，需要手动删除对应的 Docker 卷
+- 数据卷占用宿主机磁盘空间，建议定期备份和清理
+
+## 卷信息查看
+```bash
+# 查看所有卷
+docker volume ls
+
+# 查看特定卷详情
+docker volume inspect wind_whisper_rag_system_postgres_data
+
+# 查看卷使用情况
+docker system df -v
+```

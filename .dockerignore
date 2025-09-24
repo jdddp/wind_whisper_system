@@ -1,0 +1,36 @@
+# Exclude model files (mapped via docker-compose)
+models/
+!models/user.py
+
+# Exclude data directories
+data/
+logs/
+uploads/
+
+# Exclude cache and temp files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+.coverage
+
+# Exclude development files
+.env
+.env.example
+.git/
+.gitignore
+README.md
+
+# Exclude other large files
+supervisord.log
+supervisord.pid
+=2.6.0
+
+# Exclude frontend and backend directories
+frontend/
+backend/
+nginx/
+docs/
