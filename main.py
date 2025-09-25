@@ -77,6 +77,14 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to create database tables: {e}")
         raise e
+    
+    # 启动完成确认日志
+    logger.info("=" * 60)
+    logger.info("🎉 Wind Whisper RAG System 启动完成！")
+    logger.info("🌐 服务地址: http://localhost:8004")
+    logger.info("📚 API文档: http://localhost:8004/api/docs")
+    logger.info("🔧 用户管理功能已集成，支持多角色权限控制")
+    logger.info("=" * 60)
 
 @app.on_event("shutdown")
 async def shutdown_event():

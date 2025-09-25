@@ -17,6 +17,12 @@ class UserCreate(BaseModel):
     password: str
     role: UserRole = UserRole.READER
 
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
@@ -36,3 +42,9 @@ class UserResponse(BaseModel):
             is_active=user.is_active,
             created_at=user.created_at
         )
+
+class UserListResponse(BaseModel):
+    users: list[UserResponse]
+    total: int
+    page: int
+    page_size: int

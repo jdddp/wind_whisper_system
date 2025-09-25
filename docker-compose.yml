@@ -42,16 +42,37 @@ services:
   # 主应用服务 - Wind Whisper RAG系统核心服务
   # ----------------------------------------------------------------------------
   app:
-    # 镜像配置 - 使用包含pydantic-settings修复的更新镜像
+    # 镜像配置 - 使用原始镜像，通过配置文件映射管理PostgreSQL设置
     image: wind-whisper-rag:latest-with-pydantic-settings-final
     
     # 容器名称 - 便于管理和日志查看
     container_name: wind-whisper-rag-debug
     
+    # 启动命令 - 覆盖镜像默认启动行为，明确控制启动流程
+    command: >
+      bash -c "
+        # 设置数据库环境变量
+        export DATABASE_URL='postgresql://postgres:postgres123@localhost:5432/wind_whisper_rag' &&
+        
+        # 启动PostgreSQL数据库
+        service postgresql start &&
+        
+        # 等待数据库启动
+        sleep 5 &&
+        
+        # 初始化管理员用户
+        cd /app && python3 scripts/init_admin.py &&
+        
+        # 启动FastAPI应用
+        cd /app && uvicorn main:app --host 0.0.0.0 --port 8003 --reload
+      "
+    
     # 端口映射 - 将容器内部端口映射到主机端口
     # 格式：主机端口:容器端口
     ports:
       - "8004:8003"  # Web服务端口：主机8004 -> 容器8003
+      - "5432:5432"  # PostgreSQL服务端口：主机5432 -> 容器5432
+
     
     # 环境变量文件 - 从.env文件加载配置
     env_file:
@@ -85,6 +106,10 @@ services:
       # 代码映射 - 开发模式下的实时代码同步
       # 生产环境建议移除此映射以提高安全性
       - .:/app
+      
+      # PostgreSQL配置文件映射 - 自定义数据库配置
+      - ./postgre-config/postgresql.conf:/etc/postgresql/14/main/postgresql.conf
+      - ./postgre-config/pg_hba.conf:/etc/postgresql/14/main/pg_hba.conf
       
       # PostgreSQL数据持久化 - 使用命名卷确保数据安全
       - postgres_data:/var/lib/postgresql/14/main

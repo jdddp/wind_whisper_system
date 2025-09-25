@@ -6,8 +6,9 @@ from .database import Base
 import enum
 
 class UserRole(str, enum.Enum):
-    ADMIN = "admin"
-    READER = "reader"
+    ADMIN = "ADMIN"      # 管理员：完全权限
+    EXPERT = "EXPERT"    # 专家：创建、编辑权限，可管理普通用户
+    READER = "READER"    # 普通用户：只读权限
 
 class User(Base):
     __tablename__ = "users"

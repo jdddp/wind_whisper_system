@@ -128,6 +128,8 @@
         .event-severity-low {
             border-left-color: #28a745;
         }
+        
+
     </style>
 </head>
 <body>
@@ -165,6 +167,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="showSection('turbines')">
                             <i class="bi bi-gear"></i> 风机管理
+                        </a>
+                    </li>
+                    <li class="nav-item" id="user-management-nav" style="display: none;">
+                        <a class="nav-link" href="#" onclick="showSection('user-management')">
+                            <i class="bi bi-people"></i> 用户管理
                         </a>
                     </li>
                 </ul>
@@ -426,6 +433,69 @@
                             <div id="turbines-table">
                                 <p class="text-muted">加载中...</p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 用户管理 -->
+                <div id="user-management-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2><i class="bi bi-people"></i> 用户管理</h2>
+                        <button class="btn btn-primary" onclick="showCreateUserModal()">
+                            <i class="bi bi-plus-circle"></i> 创建用户
+                        </button>
+                    </div>
+                    
+                    <!-- 用户列表 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <h5 class="mb-0">用户列表</h5>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <select class="form-select" id="user-role-filter" onchange="loadUsers()">
+                                                <option value="">所有角色</option>
+                                                <option value="ADMIN">管理员</option>
+                                                <option value="EXPERT">专家</option>
+                                                <option value="READER">普通用户</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <input type="text" class="form-control" id="user-search" placeholder="搜索用户名..." onkeyup="searchUsers()">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>用户名</th>
+                                            <th>角色</th>
+                                            <th>创建时间</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="users-table-body">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">加载中...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- 分页 -->
+                            <nav aria-label="用户列表分页">
+                                <ul class="pagination justify-content-center" id="users-pagination">
+                                    <!-- 分页按钮将通过JavaScript生成 -->
+                                </ul>
+                            </nav>
                         </div>
                     </div>
                 </div>
@@ -848,6 +918,83 @@
         </div>
     </div>
 
+    <!-- 用户管理界面 -->
+
+
+    <!-- 创建用户模态框 -->
+    <div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createUserModalLabel">创建新用户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-user-form">
+                        <div class="mb-3">
+                            <label for="create-username" class="form-label">用户名</label>
+                            <input type="text" class="form-control" id="create-username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="create-password" class="form-label">密码</label>
+                            <input type="password" class="form-control" id="create-password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="create-role" class="form-label">角色</label>
+                            <select class="form-select" id="create-role" required>
+                                <option value="">请选择角色</option>
+                                <option value="READER">普通用户</option>
+                                <option value="EXPERT">专家</option>
+                                <option value="ADMIN">管理员</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="createUser()">创建用户</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑用户模态框 -->
+    <div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editUserModalLabel">编辑用户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="edit-user-form">
+                        <input type="hidden" id="edit-user-id">
+                        <div class="mb-3">
+                            <label for="edit-username" class="form-label">用户名</label>
+                            <input type="text" class="form-control" id="edit-username" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-password" class="form-label">新密码（留空则不修改）</label>
+                            <input type="password" class="form-control" id="edit-password">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-role" class="form-label">角色</label>
+                            <select class="form-select" id="edit-role" required>
+                                <option value="READER">普通用户</option>
+                                <option value="EXPERT">专家</option>
+                                <option value="ADMIN">管理员</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="updateUser()">保存修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 智能总结模态框 -->
     <div class="modal fade" id="intelligentSummaryModal" tabindex="-1" aria-labelledby="intelligentSummaryModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
@@ -980,5 +1127,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/app.js"></script>
     <script src="/static/timeline-edit.js"></script>
+    <script src="/static/user-management.js"></script>
 </body>
 </html>

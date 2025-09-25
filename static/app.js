@@ -250,6 +250,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 显示指定的内容区域
 function showSection(sectionName) {
+    // 检查页面访问权限
+    if (!checkPageAccess(sectionName)) {
+        return;
+    }
+    
     // 隐藏所有内容区域
     document.querySelectorAll('.content-section').forEach(section => {
         section.style.display = 'none';
@@ -287,10 +292,51 @@ function showSection(sectionName) {
                 displayExpertLogsLoginPrompt();
             }
             break;
+        case 'user-management':
+            if (window.authToken && currentUser) {
+                loadUsers();
+            } else {
+                showToast('请先登录以访问用户管理功能', 'warning');
+            }
+            break;
         case 'turbines':
             loadTurbinesTable();
             break;
     }
+}
+
+// 检查页面访问权限
+function checkPageAccess(sectionName) {
+    // 如果用户未登录，只允许访问dashboard、rag和timeline
+    if (!currentUser) {
+        const allowedSections = ['dashboard', 'rag', 'timeline'];
+        if (!allowedSections.includes(sectionName)) {
+            showToast('请先登录以访问此功能', 'warning');
+            return false;
+        }
+        return true;
+    }
+    
+    // 根据用户角色检查权限
+    const userRole = currentUser.role;
+    
+    // READER角色只能访问dashboard、rag和timeline
+    if (userRole === 'READER') {
+        const allowedSections = ['dashboard', 'rag', 'timeline'];
+        if (!allowedSections.includes(sectionName)) {
+            showToast('您没有权限访问此功能', 'error');
+            return false;
+        }
+    }
+    
+    // EXPERT角色可以访问除用户管理外的所有功能
+    if (userRole === 'EXPERT' && sectionName === 'user-management') {
+        showToast('您没有权限访问用户管理功能', 'error');
+        return false;
+    }
+    
+    // ADMIN角色可以访问所有功能
+    return true;
 }
 
 // API请求封装
@@ -428,9 +474,18 @@ function updateUserInfo() {
         userInfoElement.textContent = `${currentUser.username} (${currentUser.role})`;
         userInfoElement.nextElementSibling.textContent = '退出';
         userInfoElement.nextElementSibling.onclick = logout;
+        
+        // 根据用户角色显示/隐藏用户管理菜单
+        updateUIBasedOnUserRole();
     } else {
         userInfoElement.textContent = '未登录';
         userInfoElement.nextElementSibling.textContent = '登录';
+        
+        // 隐藏用户管理菜单
+        const userManagementNav = document.getElementById('user-management-nav');
+        if (userManagementNav) {
+            userManagementNav.style.display = 'none';
+        }
         userInfoElement.nextElementSibling.onclick = showLogin;
     }
 }
@@ -1507,7 +1562,7 @@ function createToastContainer() {
     return container;
 }
 
-// 时间线相关（保留原有函数以兼容）
+// 时间线相关（修正为始终以风机为单位显示）
 async function loadTimeline() {
     console.log('loadTimeline函数被调用了！');
     
@@ -1515,39 +1570,48 @@ async function loadTimeline() {
     
     console.log('选择的风机ID:', turbineId);
     
+    // 始终隐藏单个时间线容器，只使用风机时间线容器
+    document.getElementById('timeline-container').style.display = 'none';
+    document.getElementById('turbines-timeline-container').style.display = 'block';
+    
     if (!turbineId) {
         console.log('没有选择风机，显示所有风机时间线');
-        // 隐藏单个风机时间线容器，显示所有风机时间线容器
-        document.getElementById('timeline-container').style.display = 'none';
-        document.getElementById('turbines-timeline-container').style.display = 'block';
+        // 显示所有风机的时间线
+        await loadAllTurbinesTimeline();
         return;
     }
     
     try {
-        // 显示单个风机时间线容器，隐藏所有风机时间线容器
-        document.getElementById('timeline-container').style.display = 'block';
-        document.getElementById('turbines-timeline-container').style.display = 'none';
-        
         // 显示加载状态
-        document.getElementById('timeline-container').innerHTML = `
+        document.getElementById('turbines-timeline-container').innerHTML = `
             <div class="text-center py-5">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">加载中...</span>
                 </div>
-                <p class="mt-3 text-muted">正在加载时间线...</p>
+                <p class="mt-3 text-muted">正在加载选定风机的时间线...</p>
             </div>
         `;
         
-        let url = `/api/timeline/turbine/${turbineId}`;
+        // 获取选定的风机信息
+        const turbine = await apiRequest(`/api/turbines/${turbineId}`);
+        const timeline = await apiRequest(`/api/timeline/turbine/${turbineId}`);
         
-        console.log('请求URL:', url);
-        const events = await apiRequest(url);
-        console.log('获取到的事件数据:', events);
-        displayTimeline(events);
+        console.log('获取到的风机数据:', turbine);
+        console.log('获取到的时间线数据:', timeline);
+        
+        // 构造风机数据，包含时间线
+        const turbineWithTimeline = {
+            ...turbine,
+            timeline: timeline || [],
+            hasTimeline: timeline && timeline.length > 0
+        };
+        
+        // 以风机为单位显示时间线
+        await displayTurbinesTimeline([turbineWithTimeline]);
         
     } catch (error) {
         console.error('加载时间线失败:', error);
-        document.getElementById('timeline-container').innerHTML = `
+        document.getElementById('turbines-timeline-container').innerHTML = `
             <div class="alert alert-warning" role="alert">
                 <i class="bi bi-exclamation-triangle"></i>
                 加载时间线失败: ${error.message || '请检查网络连接或重新登录'}
@@ -1556,94 +1620,11 @@ async function loadTimeline() {
     }
 }
 
-function displayTimeline(events) {
-    const container = document.getElementById('timeline-container');
-    
-    if (events.length === 0) {
-        container.innerHTML = `
-            <div class="text-center text-muted py-5">
-                <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
-                <p class="mt-3">该风机暂无时间线事件</p>
-            </div>
-        `;
-        return;
-    }
-    
-    const html = events.map((event, index) => `
-        <div class="timeline-item mb-4">
-            <div class="card border-start border-4 border-${getSeverityColor(event.event_severity)}">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div class="d-flex align-items-center">
-                            <i class="bi ${getEventTypeIcon(event.event_type)} me-2 text-${getSeverityColor(event.event_severity)}"></i>
-                            <h5 class="card-title mb-0">${event.title}</h5>
-                        </div>
-                        <div class="d-flex flex-column align-items-end">
-                            <span class="badge bg-${getSeverityColor(event.event_severity)} mb-1">
-                                ${getSeverityLabel(event.event_severity)}
-                            </span>
-                            <span class="badge bg-secondary">
-                                ${getEventTypeLabel(event.event_type)}
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <small class="text-muted">
-                            <i class="bi bi-clock"></i> ${formatDateTime(event.event_time)}
-                            ${event.confidence_score ? `| 置信度: ${(event.confidence_score * 100).toFixed(1)}%` : ''}
-                            ${event.is_verified ? '<i class="bi bi-check-circle-fill text-success ms-2" title="已验证"></i>' : '<i class="bi bi-question-circle text-warning ms-2" title="未验证"></i>'}
-                        </small>
-                    </div>
-                    
-                    <p class="card-text">${event.summary}</p>
-                    
-                    ${event.key_points && event.key_points.length > 0 ? `
-                        <div class="mb-3">
-                            <h6>关键要点:</h6>
-                            <ul class="list-unstyled">
-                                ${event.key_points.map(point => `<li><i class="bi bi-dot"></i> ${point}</li>`).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${event.source_logs && event.source_logs.length > 0 ? `
-                        <div class="mb-3">
-                            <h6>相关专家记录:</h6>
-                            <div class="d-flex flex-wrap gap-2">
-                                ${event.source_logs.map(source => `
-                                    <button class="btn btn-sm btn-outline-primary" onclick="viewExpertLogDetail('${source.log_id}')" title="${source.title || '查看详情'}">
-                                        <i class="bi bi-file-text"></i> ${source.log_id.substring(0, 8)}...
-                                        ${source.relevance_score ? `(${(source.relevance_score * 100).toFixed(0)}%)` : ''}
-                                    </button>
-                                `).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-                    
-                    <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-muted">
-                            创建于 ${formatDate(event.created_at)}
-                            ${event.updated_at ? ` | 更新于 ${formatDate(event.updated_at)}` : ''}
-                        </small>
-                        <div>
-                            <button class="btn btn-sm btn-outline-info" onclick="viewTimelineEventDetail('${event.event_id}')">
-                                <i class="bi bi-eye"></i> 详情
-                            </button>
-                            ${currentUser && currentUser.role === 'admin' ? `
-                                <button class="btn btn-sm btn-outline-warning" onclick="editTimelineEvent('${event.event_id}')">
-                                    <i class="bi bi-pencil"></i> 编辑
-                                </button>
-                            ` : ''}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `).join('');
-    
-    container.innerHTML = html;
-}
+// 已废弃：displayTimeline函数 - 现在统一使用displayTurbinesTimeline以风机为单位显示
+// function displayTimeline(events) {
+//     // 此函数已被废弃，现在统一使用displayTurbinesTimeline函数
+//     // 确保时间线始终以风机为单位显示，而不是单独的事件列表
+// }
 
 // 确保函数在全局作用域中可用
 window.loadTimeline = loadTimeline;
@@ -1794,6 +1775,20 @@ async function viewTimelineEventDetail(eventId) {
                                                     <div>
                                                         <strong>${source.title || '专家记录'}</strong>
                                                         <small class="text-muted d-block">ID: ${source.log_id}</small>
+                                                        ${source.attachments && source.attachments.length > 0 ? `
+                                                            <div class="mt-2">
+                                                                <small class="text-muted">附件 (${source.attachments.length}):</small>
+                                                                <div class="mt-1">
+                                                                    ${source.attachments.map(attachment => `
+                                                                        <button class="btn btn-sm btn-outline-success me-1 mb-1" 
+                                                                                onclick="downloadAttachment('${attachment.attachment_id}', '${attachment.file_name}')"
+                                                                                title="下载附件: ${attachment.file_name} (${formatFileSize(attachment.file_size)})">
+                                                                            <i class="bi bi-download"></i> ${attachment.file_name}
+                                                                        </button>
+                                                                    `).join('')}
+                                                                </div>
+                                                            </div>
+                                                        ` : ''}
                                                     </div>
                                                     <div>
                                                         <span class="badge bg-info">相关度: ${(source.relevance_score * 100).toFixed(0)}%</span>
@@ -1819,7 +1814,7 @@ async function viewTimelineEventDetail(eventId) {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                        ${currentUser && currentUser.role === 'admin' ? `
+                        ${currentUser && currentUser.role === 'ADMIN' ? `
                             <button type="button" class="btn btn-warning" onclick="editTimelineEvent('${event.event_id}')">
                                 <i class="bi bi-pencil"></i> 编辑
                             </button>
@@ -1964,7 +1959,15 @@ async function loadTurbines() {
 
 async function loadTurbinesTable() {
     try {
+        console.log('loadTurbinesTable - 开始加载，currentUser:', currentUser);
+        // 确保用户信息已加载
+        if (!currentUser) {
+            console.log('loadTurbinesTable - currentUser为空，正在获取用户信息...');
+            await getCurrentUser();
+            console.log('loadTurbinesTable - 获取用户信息后，currentUser:', currentUser);
+        }
         const turbines = await apiRequest('/turbines/');
+        console.log('loadTurbinesTable - 获取到风机数据，准备显示表格');
         displayTurbinesTable(turbines);
     } catch (error) {
         console.error('加载风机表格失败:', error);
@@ -1973,6 +1976,11 @@ async function loadTurbinesTable() {
 
 function displayTurbinesTable(turbines) {
     const container = document.getElementById('turbines-table');
+    
+    // 调试信息
+    console.log('displayTurbinesTable - currentUser:', currentUser);
+    console.log('displayTurbinesTable - currentUser.role:', currentUser ? currentUser.role : 'currentUser is null');
+    console.log('displayTurbinesTable - role check result:', currentUser && currentUser.role === 'ADMIN');
     
     if (turbines.length === 0) {
         container.innerHTML = '<p class="text-muted">暂无风机数据</p>';
@@ -2006,9 +2014,14 @@ function displayTurbinesTable(turbines) {
                             </span>
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick="editTurbine('${turbine.turbine_id}')">
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="editTurbine('${turbine.turbine_id}')">
                                 编辑
                             </button>
+                            ${currentUser && currentUser.role === 'ADMIN' ? `
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTurbine('${turbine.turbine_id}', '${turbine.farm_name}', '${turbine.unit_id}')">
+                                删除
+                            </button>
+                            ` : ''}
                         </td>
                     </tr>
                 `).join('')}
@@ -2202,6 +2215,42 @@ async function updateTurbine() {
     }
 }
 
+async function deleteTurbine(turbineId, farmName, unitId) {
+    // 确认删除操作
+    const confirmMessage = `确定要删除风机吗？\n\n风场名称: ${farmName}\n机组编号: ${unitId}\n\n注意：删除风机将同时删除所有相关的专家记录和时间线事件，此操作不可撤销！`;
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    try {
+        const result = await apiRequest(`/turbines/${turbineId}`, {
+            method: 'DELETE'
+        });
+        
+        showToast('风机删除成功', 'success');
+        // 刷新风机表格和下拉选择框
+        loadTurbinesTable();
+        loadTurbines();
+        // 如果在仪表板页面，也刷新仪表板数据
+        if (currentPage === 'dashboard') {
+            loadDashboard();
+        }
+        
+    } catch (error) {
+        console.error('删除风机失败:', error);
+        // 如果是风机不存在的错误，给出更友好的提示
+        if (error.message.includes('Turbine not found') || error.message.includes('not found')) {
+            showToast('该风机已不存在，可能已被删除。正在刷新列表...', 'warning');
+            // 自动刷新列表以同步最新数据
+            loadTurbinesTable();
+            loadTurbines();
+        } else {
+            alert('删除风机失败: ' + error.message);
+        }
+    }
+}
+
 // 专家记录管理相关
 let currentExpertLogId = null;
 let allExpertLogs = []; // 存储所有专家记录数据
@@ -2233,6 +2282,12 @@ function displayExpertLogsLoginPrompt() {
 }
 
 async function loadExpertLogs() {
+    // 检查用户是否已登录
+    if (!currentUser) {
+        displayExpertLogsLoginPrompt();
+        return;
+    }
+    
     try {
         // 并行加载专家记录和风机数据
         const [logs, turbines] = await Promise.all([
@@ -2250,8 +2305,22 @@ async function loadExpertLogs() {
         await displayExpertLogsTable(logs);
     } catch (error) {
         console.error('加载专家记录失败:', error);
-        document.getElementById('expert-logs-table').innerHTML = 
-            '<p class="text-muted">加载失败或需要登录</p>';
+        
+        // 如果是认证错误，显示登录提示
+        if (error.message.includes('认证') || error.message.includes('登录')) {
+            displayExpertLogsLoginPrompt();
+        } else {
+            // 其他错误显示具体错误信息
+            document.getElementById('expert-logs-table').innerHTML = 
+                `<div class="text-center py-5">
+                    <i class="bi bi-exclamation-triangle" style="font-size: 3rem; color: #dc3545;"></i>
+                    <h4 class="mt-3 text-danger">加载失败</h4>
+                    <p class="text-muted">${error.message}</p>
+                    <button class="btn btn-outline-primary" onclick="loadExpertLogs()">
+                        <i class="bi bi-arrow-clockwise"></i> 重试
+                    </button>
+                </div>`;
+        }
     }
 }
 
@@ -2664,11 +2733,15 @@ function displayAttachments(attachments) {
         return;
     }
     
+    // 检查当前用户权限
+    const canDownload = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'EXPERT');
+    const canDelete = currentUser && currentUser.role === 'ADMIN';
+    
     const attachmentsList = attachments.map(attachment => `
         <div class="card mb-2">
             <div class="card-body p-2">
                 <div class="d-flex justify-content-between align-items-center">
-                    <div>
+                    <div class="flex-grow-1">
                         <strong>${attachment.file_name}</strong>
                         <small class="text-muted d-block">
                             ${attachment.file_type} • ${formatFileSize(attachment.file_size)} • 
@@ -2680,10 +2753,21 @@ function displayAttachments(attachments) {
                             </div>
                         ` : ''}
                     </div>
-                    <div>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAttachment('${attachment.attachment_id}')">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                    <div class="d-flex gap-1">
+                        ${canDownload ? `
+                            <button class="btn btn-sm btn-outline-success" 
+                                    onclick="downloadAttachment('${attachment.attachment_id}', '${attachment.file_name}')"
+                                    title="下载附件">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        ` : ''}
+                        ${canDelete ? `
+                            <button class="btn btn-sm btn-outline-danger" 
+                                    onclick="deleteAttachment('${attachment.attachment_id}')"
+                                    title="删除附件">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -2794,6 +2878,45 @@ function formatFileSize(bytes) {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// 下载附件函数
+async function downloadAttachment(attachmentId, fileName) {
+    try {
+        const response = await fetch(`/api/expert-logs/attachments/${attachmentId}/download`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${window.authToken}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('附件不存在或已被删除');
+            } else if (response.status === 403) {
+                throw new Error('没有权限下载此附件');
+            } else {
+                throw new Error(`下载失败: ${response.statusText}`);
+            }
+        }
+
+        // 创建下载链接
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        showToast(`附件 "${fileName}" 下载成功`, 'success');
+    } catch (error) {
+        console.error('下载附件失败:', error);
+        showToast(`下载失败: ${error.message}`, 'error');
+    }
 }
 
 // 文件上传相关功能

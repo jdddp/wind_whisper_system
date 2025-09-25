@@ -4,7 +4,7 @@ from typing import List, Optional
 import uuid
 import logging
 
-from models import get_db, TimelineEvent, TimelineSourceLog, ExpertLog, Turbine
+from models import get_db, TimelineEvent, TimelineSourceLog, ExpertLog, Turbine, Attachment
 from models.timeline import EventType, EventSeverity
 from schemas.timeline import (
     TimelineEventResponse, 
@@ -15,7 +15,7 @@ from schemas.timeline import (
 )
 from services.timeline_ai_service import TimelineAIService
 from services.intelligent_summary_service import IntelligentSummaryService
-from api.auth import get_current_user
+from utils.dependencies import get_current_user, get_current_admin_user, get_current_admin_or_expert_for_user_management
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["timeline"])
@@ -42,11 +42,25 @@ async def get_all_timeline_events(
             for source in event.source_logs:
                 expert_log = db.query(ExpertLog).filter(ExpertLog.log_id == source.log_id).first()
                 if expert_log:
+                    # 获取该专家记录的附件信息
+                    attachments = db.query(Attachment).filter(Attachment.log_id == source.log_id).all()
+                    attachment_list = [
+                        {
+                            "attachment_id": str(attachment.attachment_id),
+                            "file_name": attachment.file_name,
+                            "file_type": attachment.file_type,
+                            "file_size": attachment.file_size,
+                            "uploaded_at": attachment.uploaded_at.isoformat() if attachment.uploaded_at else None
+                        }
+                        for attachment in attachments
+                    ]
+                    
                     source_logs.append({
                         "log_id": str(source.log_id),
                         "relevance_score": float(source.relevance_score),
                         "title": expert_log.description_text,
-                        "created_at": source.created_at
+                        "created_at": source.created_at,
+                        "attachments": attachment_list
                     })
             
             result.append(TimelineEventResponse(
@@ -78,10 +92,10 @@ async def get_all_timeline_events(
 async def generate_timeline(
     request: TimelineGenerateRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_admin_or_expert_for_user_management)
 ):
     """
-    为指定风机生成AI时间线
+    为指定风机生成AI时间线（管理员和专家可用）
     """
     try:
         # 验证风机是否存在
@@ -214,11 +228,25 @@ async def get_turbine_timeline(
             for source in event.source_logs:
                 expert_log = db.query(ExpertLog).filter(ExpertLog.log_id == source.log_id).first()
                 if expert_log:
+                    # 获取该专家记录的附件信息
+                    attachments = db.query(Attachment).filter(Attachment.log_id == source.log_id).all()
+                    attachment_list = [
+                        {
+                            "attachment_id": str(attachment.attachment_id),
+                            "file_name": attachment.file_name,
+                            "file_type": attachment.file_type,
+                            "file_size": attachment.file_size,
+                            "uploaded_at": attachment.uploaded_at.isoformat() if attachment.uploaded_at else None
+                        }
+                        for attachment in attachments
+                    ]
+                    
                     source_logs.append({
                         "log_id": str(source.log_id),
                         "relevance_score": float(source.relevance_score),
                         "title": expert_log.description_text,
-                        "created_at": source.created_at
+                        "created_at": source.created_at,
+                        "attachments": attachment_list
                     })
             
             timeline_event = {
@@ -269,11 +297,25 @@ async def get_timeline_event(
         for source in event.source_logs:
             expert_log = db.query(ExpertLog).filter(ExpertLog.log_id == source.log_id).first()
             if expert_log:
+                # 获取该专家记录的附件信息
+                attachments = db.query(Attachment).filter(Attachment.log_id == source.log_id).all()
+                attachment_list = [
+                    {
+                        "attachment_id": str(attachment.attachment_id),
+                        "file_name": attachment.file_name,
+                        "file_type": attachment.file_type,
+                        "file_size": attachment.file_size,
+                        "uploaded_at": attachment.uploaded_at.isoformat() if attachment.uploaded_at else None
+                    }
+                    for attachment in attachments
+                ]
+                
                 source_logs.append({
                     "log_id": str(source.log_id),
                     "relevance_score": float(source.relevance_score),
                     "title": expert_log.description_text,
-                    "created_at": source.created_at
+                    "created_at": source.created_at,
+                    "attachments": attachment_list
                 })
         
         return TimelineEventResponse(
@@ -365,10 +407,10 @@ async def update_timeline_event(
 async def delete_timeline_event(
     event_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_admin_user)
 ):
     """
-    删除时间线事件
+    删除时间线事件（仅管理员可用）
     """
     try:
         event = db.query(TimelineEvent).filter(TimelineEvent.event_id == event_id).first()
@@ -563,10 +605,10 @@ async def batch_update_turbine_timeline(
 @router.post("/batch-update-all")
 async def batch_update_all_timelines(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_admin_user)
 ):
     """
-    批量更新所有风机的时间线（处理历史数据）
+    批量更新所有风机的时间线（仅管理员可用）
     """
     try:
         # 获取所有有专家记录的风机
@@ -1014,10 +1056,10 @@ async def batch_delete_timeline_events(
 async def create_timeline_event(
     event_data: TimelineEventCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_admin_or_expert_for_user_management)
 ):
     """
-    创建新的时间线事件
+    创建新的时间线事件（管理员和专家可用）
     """
     try:
         # 验证风机是否存在

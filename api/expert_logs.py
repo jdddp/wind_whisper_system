@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime
@@ -8,8 +9,9 @@ import aiofiles
 from pathlib import Path
 from models import get_db, User, ExpertLog, Turbine, Attachment
 from models.expert_log import LogStatus
+from models.user import UserRole
 from schemas.expert_log import ExpertLogCreate, ExpertLogUpdate, ExpertLogResponse
-from utils.dependencies import get_current_user, get_current_admin_user
+from utils.dependencies import get_current_user, get_current_admin_user, get_current_admin_or_expert_for_user_management
 from services.text_extraction_service import TextExtractionService
 from services.rag_service import RAGService
 
@@ -19,9 +21,9 @@ router = APIRouter()
 async def create_expert_log(
     log: ExpertLogCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_admin_or_expert_for_user_management)
 ):
-    """创建专家记录"""
+    """创建专家记录（管理员和专家可用）"""
     # 验证风机是否存在
     turbine = db.query(Turbine).filter(Turbine.turbine_id == log.turbine_id).first()
     if not turbine:
@@ -81,8 +83,8 @@ async def list_expert_logs(
     if turbine_id:
         query = query.filter(ExpertLog.turbine_id == turbine_id)
     
-    # 普通用户只能看到已发布的记录
-    if current_user.role.value != "admin":
+    # 只有READER用户只能看到已发布的记录，ADMIN和EXPERT可以看到所有记录
+    if current_user.role == UserRole.READER:
         query = query.filter(ExpertLog.log_status == LogStatus.PUBLISHED)
     
     logs = query.offset(skip).limit(limit).all()
@@ -146,8 +148,8 @@ async def get_expert_log(
             detail="Expert log not found"
         )
     
-    # 权限检查：管理员可以看到所有记录，普通用户只能看到已发布的记录或自己创建的草稿
-    if (current_user.role.value != "admin" and 
+    # 权限检查：ADMIN和EXPERT可以看到所有记录，READER只能看到已发布的记录或自己创建的草稿
+    if (current_user.role == UserRole.READER and 
         log.log_status != LogStatus.PUBLISHED and 
         log.author_id != current_user.user_id):
         raise HTTPException(
@@ -314,6 +316,8 @@ async def delete_expert_log(
     current_user: User = Depends(get_current_admin_user)
 ):
     """删除专家记录（仅管理员）"""
+    from models.timeline import TimelineSourceLog, TimelineEvent
+    
     log = db.query(ExpertLog).filter(ExpertLog.log_id == log_id).first()
     if not log:
         raise HTTPException(
@@ -321,6 +325,23 @@ async def delete_expert_log(
             detail="Expert log not found"
         )
     
+    # 获取所有相关的时间线源记录
+    source_logs = db.query(TimelineSourceLog).filter(TimelineSourceLog.log_id == log_id).all()
+    
+    # 收集相关的事件ID
+    event_ids = [source_log.event_id for source_log in source_logs]
+    
+    # 删除时间线源记录
+    db.query(TimelineSourceLog).filter(TimelineSourceLog.log_id == log_id).delete()
+    
+    # 检查并删除没有其他源记录的孤立时间线事件
+    for event_id in event_ids:
+        remaining_sources = db.query(TimelineSourceLog).filter(TimelineSourceLog.event_id == event_id).count()
+        if remaining_sources == 0:
+            # 如果没有其他源记录，删除该时间线事件
+            db.query(TimelineEvent).filter(TimelineEvent.event_id == event_id).delete()
+    
+    # 然后删除专家记录（级联删除会自动处理附件和chunks）
     db.delete(log)
     db.commit()
     
@@ -455,8 +476,8 @@ async def list_attachments(
             detail="Expert log not found"
         )
     
-    # 普通用户只能看到已发布记录的附件
-    if current_user.role.value != "admin" and log.log_status != LogStatus.PUBLISHED:
+    # READER用户只能看到已发布记录的附件
+    if current_user.role == UserRole.READER and log.log_status != LogStatus.PUBLISHED:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
@@ -516,6 +537,50 @@ async def delete_attachment(
     db.commit()
     
     return {"message": "Attachment deleted successfully"}
+
+@router.get("/attachments/{attachment_id}/download")
+async def download_attachment(
+    attachment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """下载附件"""
+    # 验证附件是否存在
+    attachment = db.query(Attachment).filter(Attachment.attachment_id == attachment_id).first()
+    if not attachment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Attachment not found"
+        )
+    
+    # 验证用户是否有权限访问该附件
+    expert_log = db.query(ExpertLog).filter(ExpertLog.log_id == attachment.log_id).first()
+    if not expert_log:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expert log not found"
+        )
+    
+    # READER用户只能下载已发布记录的附件
+    if current_user.role == UserRole.READER and expert_log.log_status != LogStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    # 检查文件是否存在
+    if not os.path.exists(attachment.storage_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on server"
+        )
+    
+    # 返回文件
+    return FileResponse(
+        path=attachment.storage_path,
+        filename=attachment.file_name,
+        media_type=attachment.file_type or 'application/octet-stream'
+    )
 
 @router.post("/{log_id}/analyze")
 async def trigger_ai_analysis(
