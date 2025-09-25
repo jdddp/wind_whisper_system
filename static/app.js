@@ -3,6 +3,12 @@ let currentUser = null;
 let currentPage = 'dashboard';
 let currentTurbineId = null;
 
+// 累积选择的文件列表
+let selectedFiles = [];
+
+// 专家记录创建时的累积文件选择
+let logAttachmentFiles = [];
+
 // 智能总结缓存
 const intelligentSummaryCache = new Map();
 const CACHE_STORAGE_KEY = 'wind_whisper_intelligent_summary_cache';
@@ -2539,7 +2545,7 @@ async function displayExpertLogsTable(logs) {
                                 <button class="btn btn-sm btn-primary" onclick="viewExpertLogDetail('${log.log_id}')" title="查看详情">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                ${log.author && currentUser && log.author.user_id === currentUser.user_id ? 
+                                ${currentUser && currentUser.role === 'ADMIN' ? 
                                     `<button class="btn btn-sm btn-danger" onclick="deleteExpertLog('${log.log_id}')" title="删除记录">
                                         <i class="fas fa-trash"></i>
                                     </button>` : ''}
@@ -2556,6 +2562,9 @@ async function displayExpertLogsTable(logs) {
 
 async function showAddExpertLogModal() {
     try {
+        // 清空之前的文件选择
+        clearLogAttachments();
+        
         // 加载风机选项
         const turbines = await apiRequest('/turbines/');
         const select = document.getElementById('log-turbine-id');
@@ -2585,7 +2594,6 @@ async function createExpertLog() {
     const turbineId = document.getElementById('log-turbine-id').value;
     const statusTag = document.getElementById('log-status-tag').value;
     const description = document.getElementById('log-description').value;
-    const attachmentFiles = document.getElementById('log-attachments').files;
     
     if (!turbineId || !statusTag || !description) {
         alert('请填写所有必填字段');
@@ -2606,8 +2614,8 @@ async function createExpertLog() {
         });
         
         // 如果有附件，上传附件
-        if (attachmentFiles.length > 0) {
-            await uploadAttachmentsForLog(newLog.log_id, attachmentFiles);
+        if (logAttachmentFiles.length > 0) {
+            await uploadAttachmentsForLog(newLog.log_id, logAttachmentFiles);
         }
         
         // 关闭模态框
@@ -2616,7 +2624,7 @@ async function createExpertLog() {
         
         // 清空表单
         document.getElementById('expertLogForm').reset();
-        document.getElementById('attachment-preview').innerHTML = '';
+        clearLogAttachments();
         
         // 刷新列表
         loadExpertLogs();
@@ -2829,6 +2837,201 @@ async function uploadAttachment() {
     }
 }
 
+// 预览选中的附件（累积选择）
+function previewSelectedAttachments() {
+    const fileInput = document.getElementById('attachment-file');
+    const previewContainer = document.getElementById('selected-attachments-preview');
+    const newFiles = Array.from(fileInput.files);
+    
+    // 将新选择的文件添加到累积列表中
+    for (const newFile of newFiles) {
+        // 检查是否已经存在同名文件
+        const existingIndex = selectedFiles.findIndex(f => f.name === newFile.name && f.size === newFile.size);
+        if (existingIndex === -1) {
+            selectedFiles.push(newFile);
+        }
+    }
+    
+    // 清空文件输入框
+    fileInput.value = '';
+    
+    // 检查文件数量限制
+    if (selectedFiles.length > 10) {
+        alert('最多只能选择10个文件，已移除超出的文件');
+        selectedFiles = selectedFiles.slice(0, 10);
+    }
+    
+    // 更新预览显示
+    updateFilePreview();
+}
+
+// 更新文件预览显示
+function updateFilePreview() {
+    const previewContainer = document.getElementById('selected-attachments-preview');
+    
+    if (selectedFiles.length === 0) {
+        previewContainer.innerHTML = '';
+        return;
+    }
+    
+    let previewHTML = '<div class="row">';
+    for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const fileType = getFileType(file.type);
+        const fileIcon = getFileIcon(fileType);
+        
+        // 检查文件大小
+        const sizeWarning = file.size > 50 * 1024 * 1024 ? ' text-danger' : '';
+        
+        previewHTML += `
+            <div class="col-md-6 col-lg-4 mb-2">
+                <div class="card">
+                    <div class="card-body p-2">
+                        <div class="d-flex align-items-center">
+                            <i class="${fileIcon} me-2"></i>
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-truncate${sizeWarning}" title="${file.name}">${file.name}</div>
+                                <small class="text-muted${sizeWarning}">${formatFileSize(file.size)}</small>
+                                ${file.size > 50 * 1024 * 1024 ? '<br><small class="text-danger">文件过大</small>' : ''}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" 
+                                    onclick="removeSelectedFile(${i})" title="移除文件">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    previewHTML += '</div>';
+    previewContainer.innerHTML = previewHTML;
+}
+
+// 移除单个选中的文件
+function removeSelectedFile(index) {
+    selectedFiles.splice(index, 1);
+    updateFilePreview();
+}
+
+// 清空选中的附件
+function clearSelectedAttachments() {
+    const fileInput = document.getElementById('attachment-file');
+    
+    fileInput.value = '';
+    selectedFiles = [];
+    updateFilePreview();
+}
+
+// 批量上传附件
+async function uploadAttachments() {
+    const fileInput = document.getElementById('attachment-file');
+    const files = selectedFiles;
+    
+    if (files.length === 0) {
+        alert('请选择要上传的文件');
+        return;
+    }
+    
+    if (!currentExpertLogId) {
+        alert('无效的记录ID');
+        return;
+    }
+    
+    if (files.length > 10) {
+        alert('最多只能选择10个文件');
+        return;
+    }
+    
+    // 检查文件大小
+    for (let i = 0; i < files.length; i++) {
+        if (files[i].size > 50 * 1024 * 1024) {
+            alert(`文件 "${files[i].name}" 大小超过50MB限制`);
+            return;
+        }
+    }
+    
+    const progressContainer = document.getElementById('upload-progress');
+    const progressBar = progressContainer.querySelector('.progress-bar');
+    const statusText = document.getElementById('upload-status');
+    
+    try {
+        // 显示进度条
+        progressContainer.style.display = 'block';
+        progressBar.style.width = '0%';
+        statusText.textContent = '准备上传...';
+        
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('files', files[i]);
+        }
+        
+        statusText.textContent = `正在上传 ${files.length} 个文件...`;
+        progressBar.style.width = '50%';
+        
+        const response = await fetch(`${API_BASE}/expert-logs/${currentExpertLogId}/attachments/batch`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${window.authToken}`
+            },
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || '批量上传失败');
+        }
+        
+        const result = await response.json();
+        
+        // 更新进度条
+        progressBar.style.width = '100%';
+        statusText.textContent = '上传完成！';
+        
+        // 清空文件输入和预览
+        selectedFiles = [];
+        updateFilePreview();
+        
+        // 重新加载附件列表
+        loadAttachments(currentExpertLogId);
+        
+        // 清空选中的文件并更新预览
+        selectedFiles = [];
+        updateFilePreview();
+        
+        // 显示结果
+        let message = result.message;
+        if (result.failed_count > 0) {
+            message += '\n\n失败的文件：\n';
+            result.failed_uploads.forEach(failed => {
+                message += `- ${failed.file_name}: ${failed.error}\n`;
+            });
+        }
+        
+        if (result.uploaded_count > 0) {
+            showToast('success', message);
+        } else {
+            showToast('error', message);
+        }
+        
+        // 隐藏进度条
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+        }, 2000);
+        
+    } catch (error) {
+        progressBar.style.width = '100%';
+        progressBar.classList.add('bg-danger');
+        statusText.textContent = '上传失败';
+        showToast('error', '批量上传失败: ' + error.message);
+        
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+            progressBar.classList.remove('bg-danger');
+        }, 3000);
+    }
+}
+
 async function deleteAttachment(attachmentId) {
     if (!confirm('确定要删除这个附件吗？')) {
         return;
@@ -2963,17 +3166,45 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function previewAttachments() {
     const fileInput = document.getElementById('log-attachments');
-    const previewContainer = document.getElementById('attachment-preview');
     const files = fileInput.files;
     
-    if (files.length === 0) {
+    // 添加新选择的文件到累积列表中
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // 检查文件是否已经存在（基于文件名和大小）
+        const exists = logAttachmentFiles.some(existingFile => 
+            existingFile.name === file.name && existingFile.size === file.size
+        );
+        
+        if (!exists) {
+            logAttachmentFiles.push(file);
+        }
+    }
+    
+    // 清空文件输入框
+    fileInput.value = '';
+    
+    // 限制文件数量（最多10个）
+    if (logAttachmentFiles.length > 10) {
+        logAttachmentFiles = logAttachmentFiles.slice(0, 10);
+        showToast('最多只能选择10个文件', 'warning');
+    }
+    
+    // 更新预览
+    updateLogAttachmentPreview();
+}
+
+function updateLogAttachmentPreview() {
+    const previewContainer = document.getElementById('attachment-preview');
+    
+    if (logAttachmentFiles.length === 0) {
         previewContainer.innerHTML = '';
         return;
     }
     
     let previewHTML = '<div class="row">';
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+    for (let i = 0; i < logAttachmentFiles.length; i++) {
+        const file = logAttachmentFiles[i];
         const fileType = getFileType(file.type);
         const fileIcon = getFileIcon(fileType);
         
@@ -2987,6 +3218,10 @@ function previewAttachments() {
                                 <div class="fw-bold text-truncate" title="${file.name}">${file.name}</div>
                                 <small class="text-muted">${formatFileSize(file.size)}</small>
                             </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-2" 
+                                    onclick="removeLogAttachmentFile(${i})" title="删除文件">
+                                <i class="fas fa-times"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2995,6 +3230,20 @@ function previewAttachments() {
     }
     previewHTML += '</div>';
     previewContainer.innerHTML = previewHTML;
+}
+
+function removeLogAttachmentFile(index) {
+    logAttachmentFiles.splice(index, 1);
+    updateLogAttachmentPreview();
+}
+
+function clearLogAttachments() {
+    logAttachmentFiles = [];
+    const fileInput = document.getElementById('log-attachments');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    updateLogAttachmentPreview();
 }
 
 function getFileType(mimeType) {

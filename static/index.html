@@ -794,15 +794,32 @@
                     <div class="mt-4">
                         <h6>附件管理</h6>
                         <div class="mb-3">
-                            <input type="file" class="form-control" id="attachment-file" 
-                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.mp3,.wav,.ogg,.mp4,.avi,.mov">
+                            <input type="file" class="form-control" id="attachment-file" multiple
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.mp3,.wav,.ogg,.mp4,.avi,.mov"
+                                   onchange="previewSelectedAttachments()">
                             <div class="form-text">
-                                支持的文件类型：PDF、Word、Excel、文本、图片、音频、视频文件（最大50MB）
+                                支持的文件类型：PDF、Word、Excel、文本、图片、音频、视频文件（最大50MB，最多10个文件）
+                            </div>
+                            <div id="selected-attachments-preview" class="mt-2">
+                                <!-- 选中文件预览 -->
                             </div>
                         </div>
-                        <button type="button" class="btn btn-success" onclick="uploadAttachment()">
-                            <i class="bi bi-upload"></i> 上传附件
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-success" onclick="uploadAttachments()">
+                                <i class="bi bi-upload"></i> 批量上传附件
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearSelectedAttachments()">
+                                <i class="bi bi-x-circle"></i> 清空选择
+                            </button>
+                        </div>
+                        <div id="upload-progress" class="mt-3" style="display: none;">
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div class="mt-2">
+                                <small id="upload-status" class="text-muted">准备上传...</small>
+                            </div>
+                        </div>
                         
                         <div class="mt-3">
                             <h6>已上传附件</h6>

@@ -461,6 +461,131 @@ async def upload_attachment(
         "message": "文件上传成功"
     }
 
+@router.post("/{log_id}/attachments/batch")
+async def upload_attachments_batch(
+    log_id: str,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """为专家记录批量上传多个附件"""
+    # 验证专家记录是否存在
+    log = db.query(ExpertLog).filter(ExpertLog.log_id == log_id).first()
+    if not log:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expert log not found"
+        )
+    
+    # 检查文件数量限制（最多10个文件）
+    if len(files) > 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot upload more than 10 files at once"
+        )
+    
+    # 检查文件类型和大小
+    allowed_types = {
+        'application/pdf', 'text/plain', 'text/csv',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/tiff',
+        'audio/mpeg', 'audio/wav', 'audio/ogg',
+        'video/mp4', 'video/avi', 'video/mov'
+    }
+    
+    max_size = 50 * 1024 * 1024  # 50MB
+    upload_dir = Path("/app/uploads/attachments")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    uploaded_attachments = []
+    failed_uploads = []
+    
+    for file in files:
+        try:
+            # 验证文件类型
+            if file.content_type not in allowed_types:
+                failed_uploads.append({
+                    "file_name": file.filename,
+                    "error": f"File type {file.content_type} not supported"
+                })
+                continue
+            
+            # 验证文件大小
+            file_content = await file.read()
+            if len(file_content) > max_size:
+                failed_uploads.append({
+                    "file_name": file.filename,
+                    "error": "File size exceeds 50MB limit"
+                })
+                continue
+            
+            # 生成唯一文件名
+            file_extension = Path(file.filename).suffix
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+            file_path = upload_dir / unique_filename
+            
+            # 保存文件
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(file_content)
+            
+            # 创建附件记录
+            attachment = Attachment(
+                log_id=log.log_id,
+                file_name=file.filename,
+                file_type=file.content_type,
+                file_size=len(file_content),
+                storage_path=str(file_path)
+            )
+            
+            db.add(attachment)
+            db.commit()
+            db.refresh(attachment)
+            
+            uploaded_attachments.append({
+                "attachment_id": str(attachment.attachment_id),
+                "file_name": attachment.file_name,
+                "file_type": attachment.file_type,
+                "file_size": attachment.file_size,
+                "uploaded_at": attachment.uploaded_at.isoformat()
+            })
+            
+            # 异步提取文本内容（不阻塞批量上传）
+            try:
+                text_service = TextExtractionService()
+                extracted_text = await text_service.extract_text(str(file_path), file.content_type)
+                
+                if extracted_text:
+                    attachment.extracted_text = extracted_text
+                    db.commit()
+                    
+            except Exception as e:
+                print(f"Text extraction failed for {file.filename}: {str(e)}")
+                
+        except Exception as e:
+            failed_uploads.append({
+                "file_name": file.filename,
+                "error": str(e)
+            })
+    
+    # 如果有成功上传的文件，重新处理RAG嵌入
+    if uploaded_attachments:
+        try:
+            rag_service = RAGService(db)
+            await rag_service.process_expert_log(int(log_id))
+        except Exception as rag_error:
+            print(f"RAG processing failed for log {log_id}: {str(rag_error)}")
+    
+    return {
+        "uploaded_count": len(uploaded_attachments),
+        "failed_count": len(failed_uploads),
+        "uploaded_attachments": uploaded_attachments,
+        "failed_uploads": failed_uploads,
+        "message": f"批量上传完成：成功 {len(uploaded_attachments)} 个，失败 {len(failed_uploads)} 个"
+    }
+
 @router.get("/{log_id}/attachments")
 async def list_attachments(
     log_id: str,

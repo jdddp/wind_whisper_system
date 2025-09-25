@@ -42,8 +42,8 @@ services:
   # 主应用服务 - Wind Whisper RAG系统核心服务
   # ----------------------------------------------------------------------------
   app:
-    # 镜像配置 - 使用原始镜像，通过配置文件映射管理PostgreSQL设置
-    image: wind-whisper-rag:latest-with-pydantic-settings-final
+    # 镜像配置 - 使用包含PostgreSQL外部访问配置的镜像
+    image: wind-whisper-rag:latest-with-postgres-external-access
     
     # 容器名称 - 便于管理和日志查看
     container_name: wind-whisper-rag-debug
@@ -108,8 +108,8 @@ services:
       - .:/app
       
       # PostgreSQL配置文件映射 - 自定义数据库配置
-      - ./postgre-config/postgresql.conf:/etc/postgresql/14/main/postgresql.conf
-      - ./postgre-config/pg_hba.conf:/etc/postgresql/14/main/pg_hba.conf
+      # - ./postgre-config/postgresql.conf:/etc/postgresql/14/main/postgresql.conf
+      # - ./postgre-config/pg_hba.conf:/etc/postgresql/14/main/pg_hba.conf
       
       # PostgreSQL数据持久化 - 使用命名卷确保数据安全
       - postgres_data:/var/lib/postgresql/14/main
