@@ -1,16 +1,16 @@
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from models.expert_log import StatusTag, LogStatus, AIReviewStatus
+from models.enums import TurbineStatus, LogStatus, AIReviewStatus
 from models.user import UserRole
 
 class ExpertLogCreate(BaseModel):
     turbine_id: str
-    status_tag: StatusTag
+    status_tag: TurbineStatus
     description_text: str
 
 class ExpertLogUpdate(BaseModel):
-    status_tag: Optional[StatusTag] = None
+    status_tag: Optional[TurbineStatus] = None
     description_text: Optional[str] = None
     ai_summary: Optional[str] = None
     ai_tags: Optional[Dict[str, Any]] = None
@@ -48,7 +48,7 @@ class ExpertLogResponse(BaseModel):
     log_id: str
     turbine_id: str
     author_id: str
-    status_tag: StatusTag
+    status_tag: TurbineStatus
     description_text: str
     log_status: LogStatus
     ai_summary: Optional[str]

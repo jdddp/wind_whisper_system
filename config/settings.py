@@ -97,12 +97,12 @@ class AIModelSettings(BaseSettings):
     model_config = {"extra": "allow"}
     # ==================== LLM模型配置 ====================
     llm_model_name: str = Field(
-        default="Qwen/Qwen2.5-0.5B-Instruct",
+        default="Qwen/Qwen3-4B-Instruct",
         env="LLM_MODEL_NAME",
         description="LLM模型名称，HuggingFace模型ID或本地路径标识"
     )
     llm_local_path: str = Field(
-        default="/app/ai_models/Qwen2.5-0.5B-Instruct",
+        default="/app/ai_models/Qwen3-4B-Instruct",
         env="LLM_LOCAL_PATH",
         description="LLM本地模型文件路径，优先使用本地模型以避免网络下载"
     )
@@ -214,7 +214,7 @@ class SecuritySettings(BaseSettings):
         description="JWT加密算法，HS256为对称加密，RS256为非对称加密，推荐HS256"
     )
     access_token_expire_minutes: int = Field(
-        default=30,
+        default=120,
         env="ACCESS_TOKEN_EXPIRE_MINUTES",
         description="访问令牌过期时间(分钟)，15-60分钟合适，过短影响体验，过长有安全风险"
     )

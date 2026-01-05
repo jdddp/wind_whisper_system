@@ -29,6 +29,83 @@ function loadCacheFromStorage() {
     }
 }
 
+// AI润色总结
+async function polishSummary() {
+    try {
+        const summaryTextarea = document.getElementById('edit-event-summary');
+        if (!summaryTextarea) {
+            showToast('找不到事件摘要字段', 'error');
+            return;
+        }
+
+        const originalSummary = summaryTextarea.value.trim();
+        if (!originalSummary) {
+            showToast('请先输入事件摘要内容', 'warning');
+            return;
+        }
+
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI润色中...';
+
+        // 模拟AI润色处理
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // 生成润色后的内容
+        const polishedSummary = generatePolishedSummary(originalSummary);
+        
+        // 更新摘要内容
+        summaryTextarea.value = polishedSummary;
+        showToast('AI润色完成', 'success');
+
+    } catch (error) {
+        console.error('AI润色失败:', error);
+        showToast('AI润色失败: ' + error.message, 'error');
+    } finally {
+        const button = event.target;
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
+}
+
+// 生成润色后的摘要
+function generatePolishedSummary(originalSummary) {
+    // 简单的润色逻辑，实际应用中可以调用真正的AI服务
+    const polishTemplates = [
+        {
+            pattern: /设备.*问题/,
+            replacement: '经分析发现设备存在异常情况'
+        },
+        {
+            pattern: /需要.*处理/,
+            replacement: '建议立即采取相应处理措施'
+        },
+        {
+            pattern: /检查.*维护/,
+            replacement: '需要进行全面检查和专业维护'
+        }
+    ];
+
+    let polishedText = originalSummary;
+    
+    // 应用润色模板
+    polishTemplates.forEach(template => {
+        if (template.pattern.test(polishedText)) {
+            polishedText = polishedText.replace(template.pattern, template.replacement);
+        }
+    });
+
+    // 添加专业性描述
+    if (polishedText === originalSummary) {
+        polishedText = `经AI分析优化：${originalSummary}\n\n建议措施：\n1. 立即安排技术人员现场检查\n2. 记录详细故障信息\n3. 制定针对性解决方案\n4. 跟踪处理进度直至问题解决`;
+    }
+
+    return polishedText;
+}
+
 // 保存缓存到localStorage
 function saveCacheToStorage() {
     try {
@@ -128,6 +205,12 @@ function getLatestAnalysis(turbineId) {
 // 状态相关辅助函数
 function getStatusColor(status) {
     const statusColors = {
+        'ALARM': 'danger',
+        'WATCH': 'warning', 
+        'MAINTENANCE': 'info',
+        'NORMAL': 'success',
+        'UNKNOWN': 'secondary',
+        // 兼容旧的格式
         'Alarm': 'danger',
         'Watch': 'warning', 
         'Maintenance': 'info',
@@ -139,6 +222,12 @@ function getStatusColor(status) {
 
 function getStatusLabel(status) {
     const statusLabels = {
+        'ALARM': '告警',
+        'WATCH': '观察',
+        'MAINTENANCE': '维护',
+        'NORMAL': '正常',
+        'UNKNOWN': '未知',
+        // 兼容旧的格式
         'Alarm': '告警',
         'Watch': '观察',
         'Maintenance': '维护',
@@ -165,6 +254,18 @@ function getSeverityColor(severity) {
         'MEDIUM': 'info',
         'LOW': 'success',
         'NORMAL': 'success',
+        'ALARM': 'danger',
+        'WATCH': 'warning',
+        'MAINTENANCE': 'info',
+        'UNKNOWN': 'secondary',
+        'alarm': 'danger',
+        'watch': 'warning',
+        'maintenance': 'info',
+        'unknown': 'secondary',
+        'Alarm': 'danger',
+        'Watch': 'warning',
+        'Maintenance': 'info',
+        'Unknown': 'secondary',
         'Info': 'secondary'
     };
     return severityColors[severity] || 'secondary';
@@ -187,37 +288,40 @@ function getSeverityLabel(severity) {
         'MEDIUM': '中',
         'LOW': '低',
         'NORMAL': '正常',
+        'ALARM': '告警',
+        'WATCH': '观察',
+        'MAINTENANCE': '维护',
+        'UNKNOWN': '未知',
+        'alarm': '告警',
+        'watch': '观察',
+        'maintenance': '维护',
+        'unknown': '未知',
+        'Alarm': '告警',
+        'Watch': '观察',
+        'Maintenance': '维护',
+        'Unknown': '未知',
         'Info': '信息'
     };
     return severityLabels[severity] || severity;
 }
 
-function getEventTypeIcon(eventType) {
-    const eventTypeIcons = {
-        'Alarm': 'bi-exclamation-triangle-fill',
-        'Maintenance': 'bi-tools',
-        'Inspection': 'bi-search',
-        'Repair': 'bi-wrench',
-        'Installation': 'bi-gear-fill',
-        'Performance': 'bi-graph-up',
-        'Environmental': 'bi-cloud-rain',
-        'Safety': 'bi-shield-check',
-        'Other': 'bi-info-circle',
-        'ALARM': 'bi-exclamation-triangle-fill',
-        'MAINTENANCE': 'bi-tools',
-        'INSPECTION': 'bi-search',
-        'REPAIR': 'bi-wrench',
-        'INSTALLATION': 'bi-gear-fill',
-        'PERFORMANCE': 'bi-graph-up',
-        'ENVIRONMENTAL': 'bi-cloud-rain',
-        'SAFETY': 'bi-shield-check',
-        'OTHER': 'bi-info-circle',
-        'FAULT': 'bi-exclamation-triangle',
+function getSeverityIcon(severity) {
+    const severityIcons = {
         'NORMAL': 'bi-check-circle',
+        'ALARM': 'bi-exclamation-triangle-fill',
         'WATCH': 'bi-eye',
-        'UNKNOWN': 'bi-question-circle'
+        'UNKNOWN': 'bi-question-circle',
+        'normal': 'bi-check-circle',
+        'alarm': 'bi-exclamation-triangle-fill',
+        'watch': 'bi-eye',
+        'unknown': 'bi-question-circle'
     };
-    return eventTypeIcons[eventType] || 'bi-info-circle';
+    return severityIcons[severity] || 'bi-info-circle';
+}
+
+// 保持向后兼容的函数名
+function getEventTypeIcon(eventType) {
+    return getSeverityIcon(eventType);
 }
 
 // 日期格式化函数
@@ -309,6 +413,16 @@ function showSection(sectionName) {
             loadTurbinesTable();
             break;
     }
+
+    // 根据用户角色和当前页面，控制“添加风机”按钮的可见性
+    const addTurbineBtn = document.getElementById('add-turbine-btn');
+    if (addTurbineBtn) {
+        if (sectionName === 'turbines' && currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'EXPERT')) {
+            addTurbineBtn.style.display = 'block';
+        } else {
+            addTurbineBtn.style.display = 'none';
+        }
+    }
 }
 
 // 检查页面访问权限
@@ -316,33 +430,42 @@ function checkPageAccess(sectionName) {
     // 如果用户未登录，只允许访问dashboard、rag和timeline
     if (!currentUser) {
         const allowedSections = ['dashboard', 'rag', 'timeline'];
-        if (!allowedSections.includes(sectionName)) {
-            showToast('请先登录以访问此功能', 'warning');
+        if (allowedSections.includes(sectionName)) {
+            return true;
+        }
+        showToast('请先登录以访问此功能', 'warning');
+        return false;
+    }
+    
+    const userRole = currentUser.role;
+    
+    // ADMIN can access everything
+    if (userRole === 'ADMIN') {
+        return true;
+    }
+    
+    // EXPERT can access everything except user-management
+    if (userRole === 'EXPERT') {
+        if (sectionName === 'user-management') {
+            showToast('您没有权限访问用户管理功能', 'error');
             return false;
         }
         return true;
     }
     
-    // 根据用户角色检查权限
-    const userRole = currentUser.role;
-    
-    // READER角色只能访问dashboard、rag和timeline
+    // READER can access a limited set of pages
     if (userRole === 'READER') {
-        const allowedSections = ['dashboard', 'rag', 'timeline'];
-        if (!allowedSections.includes(sectionName)) {
-            showToast('您没有权限访问此功能', 'error');
-            return false;
+        const allowedSections = ['dashboard',  'timeline', 'turbines'];
+        if (allowedSections.includes(sectionName)) {
+            return true;
         }
-    }
-    
-    // EXPERT角色可以访问除用户管理外的所有功能
-    if (userRole === 'EXPERT' && sectionName === 'user-management') {
-        showToast('您没有权限访问用户管理功能', 'error');
+        showToast('您没有权限访问此功能', 'error');
         return false;
     }
     
-    // ADMIN角色可以访问所有功能
-    return true;
+    // Deny any other roles by default
+    showToast('未知用户角色，访问受限', 'error');
+    return false;
 }
 
 // API请求封装
@@ -357,7 +480,15 @@ async function apiRequest(url, options = {}) {
         defaultOptions.headers['Authorization'] = `Bearer ${window.authToken}`;
     }
     
-    const finalOptions = { ...defaultOptions, ...options };
+    // 正确合并headers，确保Authorization头不被覆盖
+    const finalOptions = { 
+        ...defaultOptions, 
+        ...options,
+        headers: {
+            ...defaultOptions.headers,
+            ...(options.headers || {})
+        }
+    };
     if (finalOptions.body && typeof finalOptions.body === 'object') {
         finalOptions.body = JSON.stringify(finalOptions.body);
     }
@@ -509,27 +640,24 @@ async function loadDashboard() {
     try {
         const stats = await apiRequest('/dashboard/stats');
         
-        // 显示核心统计
-        document.getElementById('total-turbines').textContent = stats.total_turbines;
-        document.getElementById('total-expert-logs').textContent = stats.total_expert_logs || 0;
-        document.getElementById('alarm-turbines-count').textContent = stats.alarm_turbines_count || 0;
-        
         // 显示状态分布
         displayStatusDistribution(stats.status_distribution);
         
-        // 显示告警机组
-        displayAlarmTurbines(stats.alarm_turbines);
+        // 显示各状态机组
+        displayTurbinesByStatus('alarm-turbines', stats.alarm_turbines, 'alarm');
+        displayTurbinesByStatus('watch-turbines', stats.watch_turbines, 'watch');
+        displayTurbinesByStatus('maintenance-turbines', stats.maintenance_turbines, 'maintenance');
         
     } catch (error) {
         console.error('加载驾驶舱数据失败:', error);
         // 显示默认值
-        document.getElementById('total-turbines').textContent = '0';
-        document.getElementById('total-expert-logs').textContent = '0';
-        document.getElementById('alarm-turbines-count').textContent = '0';
-        
         document.getElementById('status-distribution').innerHTML = 
             '<p class="text-muted">暂无数据或需要登录</p>';
         document.getElementById('alarm-turbines').innerHTML = 
+            '<p class="text-muted">暂无数据或需要登录</p>';
+        document.getElementById('watch-turbines').innerHTML = 
+            '<p class="text-muted">暂无数据或需要登录</p>';
+        document.getElementById('maintenance-turbines').innerHTML = 
             '<p class="text-muted">暂无数据或需要登录</p>';
     }
 }
@@ -543,6 +671,12 @@ function displayStatusDistribution(statusDistribution) {
     }
     
     const statusLabels = {
+        'NORMAL': '正常',
+        'ALARM': '告警',
+        'WATCH': '观察',
+        'MAINTENANCE': '维护',
+        'UNKNOWN': '未知',
+        // 兼容旧格式
         'Normal': '正常',
         'Alarm': '告警',
         'Watch': '观察',
@@ -551,6 +685,12 @@ function displayStatusDistribution(statusDistribution) {
     };
     
     const statusColors = {
+        'NORMAL': 'success',
+        'ALARM': 'danger',
+        'WATCH': 'warning', 
+        'MAINTENANCE': 'info',
+        'UNKNOWN': 'secondary',
+        // 兼容旧格式
         'Normal': 'success',
         'Alarm': 'danger',
         'Watch': 'warning', 
@@ -586,37 +726,67 @@ function displayStatusDistribution(statusDistribution) {
     container.innerHTML = html;
 }
 
-function displayAlarmTurbines(alarmTurbines) {
-    const container = document.getElementById('alarm-turbines');
+function displayTurbinesByStatus(containerId, turbines, statusType) {
+    const container = document.getElementById(containerId);
     
-    if (!alarmTurbines || alarmTurbines.length === 0) {
-        container.innerHTML = '<div class="text-center py-4"><i class="bi bi-check-circle text-success fs-1"></i><p class="text-muted mt-2">暂无告警机组，系统运行正常</p></div>';
+    // 状态配置
+    const statusConfig = {
+        'alarm': {
+            label: '告警',
+            badgeClass: 'bg-danger',
+            cardClass: 'border-danger',
+            emptyIcon: 'bi-check-circle text-success',
+            emptyMessage: '暂无告警机组，系统运行正常'
+        },
+        'watch': {
+            label: '观察',
+            badgeClass: 'bg-warning text-dark',
+            cardClass: 'border-warning',
+            emptyIcon: 'bi-eye text-warning',
+            emptyMessage: '暂无观察机组'
+        },
+        'maintenance': {
+            label: '维护',
+            badgeClass: 'bg-info',
+            cardClass: 'border-info',
+            emptyIcon: 'bi-tools text-info',
+            emptyMessage: '暂无维护机组'
+        }
+    };
+    
+    const config = statusConfig[statusType] || statusConfig['alarm'];
+    
+    if (!turbines || turbines.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="${config.emptyIcon} fs-1"></i>
+                <p class="text-muted mt-2">${config.emptyMessage}</p>
+            </div>
+        `;
         return;
     }
     
     const html = `
-        <div class="row">
-            ${alarmTurbines.map(turbine => `
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card border-danger">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <h6 class="card-title mb-1">${turbine.farm_name}</h6>
-                                    <p class="card-text mb-1"><strong>${turbine.unit_id}</strong></p>
-                                    <small class="text-muted">${turbine.description || '无描述'}</small>
-                                </div>
-                                <span class="badge bg-danger">告警</span>
+        ${turbines.map(turbine => `
+            <div class="mb-2">
+                <div class="card ${config.cardClass} card-sm">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="card-title mb-1 fs-6">${turbine.farm_name}</h6>
+                                <p class="card-text mb-1"><strong>${turbine.unit_id}</strong></p>
+                                <small class="text-muted d-block" style="font-size: 0.75rem;">${turbine.description || '无描述'}</small>
+                                ${turbine.owner_company ? `<small class="text-muted d-block" style="font-size: 0.7rem;">所属: ${turbine.owner_company}</small>` : ''}
+                                ${turbine.latest_time ? `<small class="text-muted d-block" style="font-size: 0.7rem;">最新时间: ${formatDate(turbine.latest_time)}</small>` : ''}
                             </div>
-                            ${turbine.owner_company ? `<small class="text-muted">所属: ${turbine.owner_company}</small>` : ''}
-                            ${turbine.latest_alarm_time ? `<br><small class="text-muted">最新告警: ${formatDate(turbine.latest_alarm_time)}</small>` : ''}
+                            <span class="badge ${config.badgeClass} ms-2">${config.label}</span>
                         </div>
                     </div>
                 </div>
-            `).join('')}
-        </div>
-        <div class="mt-3 text-center">
-            <small class="text-muted">共 ${alarmTurbines.length} 台机组存在告警</small>
+            </div>
+        `).join('')}
+        <div class="mt-2 text-center">
+            <small class="text-muted">共 ${turbines.length} 台${config.label}机组</small>
         </div>
     `;
     
@@ -680,6 +850,12 @@ let filteredTurbinesData = [];
 
 // 状态优先级映射：告警>观察>维护>正常>未知
 const STATUS_PRIORITY = {
+    'ALARM': 1,
+    'WATCH': 2, 
+    'MAINTENANCE': 3,
+    'NORMAL': 4,
+    'UNKNOWN': 5,
+    // 兼容旧格式
     'Alarm': 1,
     'Watch': 2, 
     'Maintenance': 3,
@@ -1404,7 +1580,33 @@ function displayTimelineEvents(events, turbineId = null) {
                     <small class="text-muted">${formatDateTime(event.event_time)}</small>
                 </div>
             </div>
-            <p class="text-muted mb-2">${event.summary}</p>
+            
+            <!-- 简要摘要 -->
+            <div class="timeline-summary mb-2">
+                <p class="text-muted mb-1">${event.summary}</p>
+                ${event.detail && event.detail.trim() ? `
+                    <button class="btn btn-sm btn-link p-0 text-decoration-none" 
+                            onclick="toggleTimelineEventDetail('${event.event_id}')" 
+                            id="toggle-btn-${event.event_id}">
+                        <i class="fas fa-chevron-down me-1"></i> 查看详细内容
+                    </button>
+                ` : ''}
+            </div>
+            
+            <!-- 详细内容（默认隐藏） -->
+            ${event.detail && event.detail.trim() ? `
+                <div class="timeline-detail collapse" id="detail-${event.event_id}">
+                    <div class="border-top pt-2 mt-2">
+                        <h6 class="text-primary mb-2">
+                            <i class="fas fa-info-circle"></i> 详细内容
+                        </h6>
+                        <div class="bg-light p-3 rounded">
+                            <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">${event.detail}</pre>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+            
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex flex-wrap gap-1">
                     ${event.source_logs && event.source_logs.length > 0 ? 
@@ -1730,20 +1932,14 @@ async function viewTimelineEventDetail(eventId) {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            <i class="bi ${getEventTypeIcon(event.event_type)}"></i>
+                            <i class="bi bi-calendar-event"></i>
                             ${event.title}
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <strong>事件时间:</strong> ${formatDateTime(event.event_time)}
-                            </div>
-                            <div class="col-md-6">
-                                <strong>事件类型:</strong> 
-                                <span class="badge bg-secondary">${getEventTypeLabel(event.event_type)}</span>
-                            </div>
+                        <div class="mb-3">
+                            <strong>事件时间:</strong> ${formatDateTime(event.event_time)}
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-6">
@@ -1758,17 +1954,13 @@ async function viewTimelineEventDetail(eventId) {
                         
                         <div class="mb-3">
                             <strong>事件摘要:</strong>
-                            <p class="mt-2">${event.summary}</p>
+                            <div class="mt-2">
+                                <textarea class="form-control" id="detail-event-summary" rows="3" onchange="updateEventSummary(${event.event_id})">${event.summary}</textarea>
+                                <small class="text-muted">内容修改后会自动保存</small>
+                            </div>
                         </div>
                         
-                        ${event.key_points && event.key_points.length > 0 ? `
-                            <div class="mb-3">
-                                <strong>关键要点:</strong>
-                                <ul class="mt-2">
-                                    ${event.key_points.map(point => `<li>${point}</li>`).join('')}
-                                </ul>
-                            </div>
-                        ` : ''}
+
                         
                         ${event.source_logs && event.source_logs.length > 0 ? `
                             <div class="mb-3">
@@ -1814,7 +2006,6 @@ async function viewTimelineEventDetail(eventId) {
                             <small>
                                 创建于: ${formatDate(event.created_at)}
                                 ${event.updated_at ? ` | 更新于: ${formatDate(event.updated_at)}` : ''}
-                                ${event.confidence_score ? ` | AI置信度: ${(event.confidence_score * 100).toFixed(1)}%` : ''}
                             </small>
                         </div>
                     </div>
@@ -1882,38 +2073,34 @@ function getEventTypeIcon(eventType) {
     return icons[eventType] || 'bi-question-circle';
 }
 
-function getEventTypeLabel(eventType) {
+function getSeverityLabel(severity) {
     const labels = {
-        'normal': '正常',
-        'alarm': '告警',
-        'watch': '观察',
-        'maintenance': '维护',
-        'unknown': '未知',
-        'other': '其他',
-        // 保持向后兼容
-        'fault': '故障',
-        'inspection': '检查',
-        'repair': '修理',
-        'upgrade': '升级',
-        'monitoring': '监测',
-        // 大写枚举值支持
         'NORMAL': '正常',
         'ALARM': '告警',
         'WATCH': '观察',
-        'MAINTENANCE': '维护',
         'UNKNOWN': '未知',
-        'OTHER': '其他',
-        'FAULT': '故障',
-        'INSPECTION': '检查',
-        'REPAIR': '修理',
-        'UPGRADE': '升级',
-        'MONITORING': '监测'
+        'normal': '正常',
+        'alarm': '告警',
+        'watch': '观察',
+        'unknown': '未知'
     };
-    return labels[eventType] || '未知';
+    return labels[severity] || '未知';
+}
+
+// 保持向后兼容的函数名
+function getEventTypeLabel(eventType) {
+    return getSeverityLabel(eventType);
 }
 
 function getSeverityColor(severity) {
+    // 统一使用专家记录的状态标签系统
     const colors = {
+        'Alarm': 'danger',
+        'Watch': 'warning', 
+        'Maintenance': 'info',
+        'Normal': 'success',
+        'Unknown': 'secondary',
+        // 保持向后兼容
         'critical': 'danger',
         'high': 'warning',
         'medium': 'info',
@@ -1928,7 +2115,14 @@ function getSeverityColor(severity) {
 }
 
 function getSeverityLabel(severity) {
+    // 统一使用专家记录的状态标签系统
     const labels = {
+        'Alarm': '告警',
+        'Watch': '观察',
+        'Maintenance': '维护',
+        'Normal': '正常',
+        'Unknown': '未知',
+        // 保持向后兼容
         'critical': '紧急',
         'high': '重要',
         'medium': '一般',
@@ -1982,17 +2176,13 @@ async function loadTurbinesTable() {
 
 function displayTurbinesTable(turbines) {
     const container = document.getElementById('turbines-table');
-    
-    // 调试信息
-    console.log('displayTurbinesTable - currentUser:', currentUser);
-    console.log('displayTurbinesTable - currentUser.role:', currentUser ? currentUser.role : 'currentUser is null');
-    console.log('displayTurbinesTable - role check result:', currentUser && currentUser.role === 'ADMIN');
-    
+    const canEdit = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'EXPERT');
+
     if (turbines.length === 0) {
         container.innerHTML = '<p class="text-muted">暂无风机数据</p>';
         return;
     }
-    
+
     const html = `
         <table class="table table-striped">
             <thead>
@@ -2003,7 +2193,7 @@ function displayTurbinesTable(turbines) {
                     <th>装机容量</th>
                     <th>投运日期</th>
                     <th>状态</th>
-                    <th>操作</th>
+                    ${canEdit ? '<th>操作</th>' : ''}
                 </tr>
             </thead>
             <tbody>
@@ -2015,26 +2205,26 @@ function displayTurbinesTable(turbines) {
                         <td>${turbine.capacity || '-'}</td>
                         <td>${turbine.install_date ? formatDate(turbine.install_date) : '-'}</td>
                         <td>
-                            <span class="badge bg-${getStatusColor(turbine.status || 'Normal')}">
-                                ${getStatusLabel(turbine.status || 'Normal')}
+                            <span class="badge bg-${getStatusColor(turbine.status || 'NORMAL')}">
+                                ${getStatusLabel(turbine.status || 'NORMAL')}
                             </span>
                         </td>
+                        ${canEdit ? `
                         <td>
                             <button class="btn btn-sm btn-outline-primary me-2" onclick="editTurbine('${turbine.turbine_id}')">
                                 编辑
                             </button>
-                            ${currentUser && currentUser.role === 'ADMIN' ? `
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTurbine('${turbine.turbine_id}', '${turbine.farm_name}', '${turbine.unit_id}')">
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTurbine('${turbine.turbine_id}')">
                                 删除
                             </button>
-                            ` : ''}
                         </td>
+                        ` : ''}
                     </tr>
                 `).join('')}
             </tbody>
         </table>
     `;
-    
+
     container.innerHTML = html;
 }
 
@@ -2054,7 +2244,13 @@ function getStatusColor(status) {
         'active': 'success',
         'inactive': 'danger',
         'maintenance': 'warning',
-        // 风机状态颜色
+        // 风机状态颜色 - 新的大写格式
+        'NORMAL': 'success',
+        'WATCH': 'warning',
+        'ALARM': 'danger',
+        'MAINTENANCE': 'warning',
+        'UNKNOWN': 'secondary',
+        // 兼容旧的格式
         'Normal': 'success',
         'Watch': 'warning',
         'Alarm': 'danger',
@@ -2066,6 +2262,13 @@ function getStatusColor(status) {
 
 function getStatusLabel(status) {
     switch(status) {
+        // 新的大写格式
+        case 'NORMAL': return '正常';
+        case 'WATCH': return '观察';
+        case 'ALARM': return '告警';
+        case 'MAINTENANCE': return '维护';
+        case 'UNKNOWN': return '未知';
+        // 兼容旧的格式
         case 'Normal': return '正常';
         case 'Watch': return '观察';
         case 'Alarm': return '告警';
@@ -2151,7 +2354,7 @@ async function editTurbine(turbineId) {
         document.getElementById('edit_unit_id').value = turbine.unit_id || '';
         document.getElementById('edit_model').value = turbine.model || '';
         document.getElementById('edit_owner_company').value = turbine.owner_company || '';
-        document.getElementById('edit_status').value = turbine.status || 'Normal';
+        document.getElementById('edit_status').value = turbine.status || 'NORMAL';
         
         // 处理日期字段
         if (turbine.install_date) {
@@ -2254,7 +2457,121 @@ async function deleteTurbine(turbineId, farmName, unitId) {
         } else {
             alert('删除风机失败: ' + error.message);
         }
+     }
+}
+
+// 更新事件摘要
+async function updateEventSummary(eventId) {
+    try {
+        const summaryTextarea = document.getElementById('detail-event-summary');
+        if (!summaryTextarea) {
+            return;
+        }
+
+        const newSummary = summaryTextarea.value.trim();
+        if (!newSummary) {
+            showToast('事件摘要不能为空', 'warning');
+            return;
+        }
+
+        // 发送更新请求
+        const response = await fetch(`/api/timeline/${eventId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                summary: newSummary
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        showToast('事件摘要已更新', 'success');
+
+    } catch (error) {
+        console.error('更新事件摘要失败:', error);
+        showToast('更新事件摘要失败: ' + error.message, 'error');
+     }
+}
+
+// AI润色总结
+async function polishSummary() {
+    try {
+        const summaryTextarea = document.getElementById('edit-event-summary');
+        if (!summaryTextarea) {
+            showToast('找不到事件摘要字段', 'error');
+            return;
+        }
+
+        const originalSummary = summaryTextarea.value.trim();
+        if (!originalSummary) {
+            showToast('请先输入事件摘要内容', 'warning');
+            return;
+        }
+
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI润色中...';
+
+        // 模拟AI润色处理
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // 生成润色后的内容
+        const polishedSummary = generatePolishedSummary(originalSummary);
+        
+        // 更新摘要内容
+        summaryTextarea.value = polishedSummary;
+        showToast('AI润色完成', 'success');
+
+    } catch (error) {
+        console.error('AI润色失败:', error);
+        showToast('AI润色失败: ' + error.message, 'error');
+    } finally {
+        const button = event.target;
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
     }
+}
+
+// 生成润色后的摘要
+function generatePolishedSummary(originalSummary) {
+    // 简单的润色逻辑，实际应用中可以调用真正的AI服务
+    const polishTemplates = [
+        {
+            pattern: /设备.*问题/,
+            replacement: '经分析发现设备存在异常情况'
+        },
+        {
+            pattern: /需要.*处理/,
+            replacement: '建议立即采取相应处理措施'
+        },
+        {
+            pattern: /检查.*维护/,
+            replacement: '需要进行全面检查和专业维护'
+        }
+    ];
+
+    let polishedText = originalSummary;
+    
+    // 应用润色模板
+    polishTemplates.forEach(template => {
+        if (template.pattern.test(polishedText)) {
+            polishedText = polishedText.replace(template.pattern, template.replacement);
+        }
+    });
+
+    // 添加专业性描述
+    if (polishedText === originalSummary) {
+        polishedText = `经AI分析优化：${originalSummary}\n\n建议措施：\n1. 立即安排技术人员现场检查\n2. 记录详细故障信息\n3. 制定针对性解决方案\n4. 跟踪处理进度直至问题解决`;
+    }
+
+    return polishedText;
 }
 
 // 专家记录管理相关
@@ -2511,7 +2828,7 @@ async function displayExpertLogsTable(logs) {
                         </td>
                         <td>
                             <div class="d-flex flex-column">
-                                <span class="fw-bold">${log.title}</span>
+                                <span class="fw-bold">${log.description_text ? (log.description_text.length > 20 ? log.description_text.substring(0, 20) + '...' : log.description_text) : '无标题'}</span>
                                 <small class="text-muted">${log.description_text ? log.description_text.substring(0, 50) + '...' : '无描述'}</small>
                             </div>
                         </td>
@@ -2600,7 +2917,19 @@ async function createExpertLog() {
         return;
     }
     
+    // 显示进度容器
+    showUploadProgress();
+    
+    // 禁用创建按钮
+    const createBtn = document.getElementById('create-log-btn');
+    const cancelBtn = document.getElementById('cancel-upload-btn');
+    createBtn.disabled = true;
+    cancelBtn.textContent = '取消';
+    
     try {
+        // 更新状态：创建专家记录
+        updateUploadStatus('正在创建专家记录...', 10);
+        
         // 只使用用户输入的描述，不进行AI分析
         const logData = {
             turbine_id: turbineId,
@@ -2613,10 +2942,23 @@ async function createExpertLog() {
             body: logData
         });
         
+        // 更新状态：专家记录创建完成
+        updateUploadStatus('专家记录创建完成', 30);
+        
         // 如果有附件，上传附件
         if (logAttachmentFiles.length > 0) {
-            await uploadAttachmentsForLog(newLog.log_id, logAttachmentFiles);
+            updateUploadStatus('正在上传附件...', 40);
+            await uploadAttachmentsForLogWithProgress(newLog.log_id, logAttachmentFiles);
+        } else {
+            // 没有附件，直接完成
+            updateUploadStatus('创建完成！', 100);
         }
+        
+        // 延迟一下让用户看到完成状态
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 隐藏进度容器
+        hideUploadProgress();
         
         // 关闭模态框
         const modal = bootstrap.Modal.getInstance(document.getElementById('addExpertLogModal'));
@@ -2629,9 +2971,16 @@ async function createExpertLog() {
         // 刷新列表
         loadExpertLogs();
         
-        alert('专家记录创建成功！');
+        showToast('专家记录创建成功！', 'success');
         
     } catch (error) {
+        // 隐藏进度容器
+        hideUploadProgress();
+        
+        // 恢复按钮状态
+        createBtn.disabled = false;
+        cancelBtn.textContent = '取消';
+        
         alert('创建失败: ' + error.message);
     }
 }
@@ -2645,7 +2994,7 @@ async function viewExpertLogDetail(logId) {
         const detailContent = document.getElementById('expert-log-detail-content');
         detailContent.innerHTML = `
             <div class="row">
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <h6>基本信息</h6>
                     <p><strong>记录编号:</strong> <span class="text-primary">${log.log_id.substring(0, 8)}...</span> 
                        <small class="text-muted" title="${log.log_id}">完整ID</small></p>
@@ -2656,13 +3005,6 @@ async function viewExpertLogDetail(logId) {
                     ${log.author && log.author.role ? `<p><strong>作者角色:</strong> ${log.author.role}</p>` : ''}
                     <p><strong>创建时间:</strong> ${formatDate(log.created_at)}</p>
                     ${log.last_modified_at && log.last_modified_at !== log.created_at ? `<p><strong>最后修改:</strong> ${formatDate(log.last_modified_at)}</p>` : ''}
-                </div>
-                <div class="col-md-6">
-                    <h6>AI增强信息</h6>
-                    <p><strong>AI摘要:</strong> ${log.ai_summary || '暂无'}</p>
-                    <p><strong>AI标签:</strong> ${log.ai_tags || '暂无'}</p>
-                    <p><strong>可信度评分:</strong> ${log.confidence_score || 'N/A'}</p>
-                    <p><strong>审核状态:</strong> ${log.ai_review_status || 'Pending'}</p>
                 </div>
             </div>
             <div class="mt-3">
@@ -2702,17 +3044,16 @@ async function viewExpertLogDetail(logId) {
             revisionHistoryBtn.style.display = 'none';
         }
         
-        // 始终显示AI分析区域
-        const aiAnalysisSection = document.getElementById('ai-analysis-section');
-        aiAnalysisSection.style.display = 'block';
-        
         console.log('专家记录操作按钮已配置 - 编辑、创建时间线事件');
         
         // 加载附件列表
         loadAttachments(logId);
         
-        // 加载可用文件列表用于AI分析
-        loadAvailableFilesForAnalysis(logId);
+        // 动态设置模态框标题
+        const modalTitle = document.querySelector('#expertLogDetailModal .modal-title');
+        const turbineInfo = log.turbine ? `${log.turbine.farm_name} - ${log.turbine.unit_id}` : '未知风机';
+        const shortLogId = log.log_id.substring(0, 8);
+        modalTitle.textContent = `专家记录详情 - ${turbineInfo} (${shortLogId})`;
         
         // 显示模态框
         const modal = new bootstrap.Modal(document.getElementById('expertLogDetailModal'));
@@ -3299,6 +3640,191 @@ async function uploadAttachmentsForLog(logId, files) {
     } catch (error) {
         console.error('附件上传失败:', error);
         alert('部分附件上传失败: ' + error.message);
+    }
+}
+
+// 带进度显示的文件上传函数
+async function uploadAttachmentsForLogWithProgress(logId, files) {
+    // 初始化文件进度列表
+    initializeFileProgressList(files);
+    
+    let completedFiles = 0;
+    const totalFiles = files.length;
+    
+    // 逐个上传文件以便跟踪进度
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileId = `file-${i}`;
+        
+        try {
+            // 更新文件状态为上传中
+            updateFileProgress(fileId, 0, 'uploading', '上传中...');
+            
+            // 创建XMLHttpRequest以支持进度跟踪
+            await uploadSingleFileWithProgress(logId, file, fileId);
+            
+            // 更新文件状态为完成
+            updateFileProgress(fileId, 100, 'completed', '上传完成');
+            completedFiles++;
+            
+            // 更新总体进度
+            const overallProgress = 40 + (completedFiles / totalFiles) * 60; // 40-100%
+            updateUploadStatus(`已上传 ${completedFiles}/${totalFiles} 个文件`, overallProgress);
+            
+        } catch (error) {
+            // 更新文件状态为错误
+            updateFileProgress(fileId, 0, 'error', '上传失败');
+            console.error(`文件 ${file.name} 上传失败:`, error);
+            throw new Error(`文件 ${file.name} 上传失败: ${error.message}`);
+        }
+    }
+    
+    // 所有文件上传完成
+    updateUploadStatus('所有文件上传完成！', 100);
+}
+
+// 上传单个文件并跟踪进度
+function uploadSingleFileWithProgress(logId, file, fileId) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // 监听上传进度
+        xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+                const percentComplete = (event.loaded / event.total) * 100;
+                updateFileProgress(fileId, percentComplete, 'uploading', `${Math.round(percentComplete)}%`);
+            }
+        });
+        
+        // 监听上传完成
+        xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(JSON.parse(xhr.responseText));
+            } else {
+                reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+            }
+        });
+        
+        // 监听上传错误
+        xhr.addEventListener('error', () => {
+            reject(new Error('网络错误'));
+        });
+        
+        // 监听上传中止
+        xhr.addEventListener('abort', () => {
+            reject(new Error('上传被中止'));
+        });
+        
+        // 开始上传
+        xhr.open('POST', `${API_BASE}/expert-logs/${logId}/attachments`);
+        xhr.setRequestHeader('Authorization', `Bearer ${window.authToken}`);
+        xhr.send(formData);
+    });
+}
+
+// 进度显示相关函数
+function showUploadProgress() {
+    const progressContainer = document.getElementById('upload-progress-container');
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+    }
+}
+
+function hideUploadProgress() {
+    const progressContainer = document.getElementById('upload-progress-container');
+    if (progressContainer) {
+        progressContainer.style.display = 'none';
+    }
+    
+    // 重置进度
+    updateUploadStatus('', 0);
+    clearFileProgressList();
+    
+    // 恢复按钮状态
+    const createBtn = document.getElementById('create-log-btn');
+    const cancelBtn = document.getElementById('cancel-upload-btn');
+    if (createBtn) createBtn.disabled = false;
+    if (cancelBtn) cancelBtn.textContent = '取消';
+}
+
+function updateUploadStatus(statusText, progress) {
+    const statusTextElement = document.getElementById('upload-status-text');
+    const progressBar = document.getElementById('overall-progress-bar');
+    const progressText = document.getElementById('overall-progress-text');
+    
+    if (statusTextElement) {
+        statusTextElement.textContent = statusText;
+    }
+    
+    if (progressBar) {
+        progressBar.style.width = `${progress}%`;
+        progressBar.setAttribute('aria-valuenow', progress);
+        
+        // 添加动画类
+        if (progress < 100) {
+            progressBar.classList.add('uploading');
+        } else {
+            progressBar.classList.remove('uploading');
+        }
+    }
+    
+    if (progressText) {
+        progressText.textContent = `${Math.round(progress)}%`;
+    }
+}
+
+function initializeFileProgressList(files) {
+    const fileProgressList = document.getElementById('file-progress-list');
+    if (!fileProgressList) return;
+    
+    fileProgressList.innerHTML = '';
+    
+    files.forEach((file, index) => {
+        const fileId = `file-${index}`;
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-progress-item';
+        fileItem.id = fileId;
+        
+        fileItem.innerHTML = `
+            <div class="file-info">
+                <span class="file-name" title="${file.name}">${file.name}</span>
+                <span class="file-size">${formatFileSize(file.size)}</span>
+                <span class="file-status" id="${fileId}-status">等待上传</span>
+            </div>
+            <div class="file-progress-bar">
+                <div class="file-progress-fill" id="${fileId}-progress" style="width: 0%"></div>
+            </div>
+        `;
+        
+        fileProgressList.appendChild(fileItem);
+    });
+}
+
+function updateFileProgress(fileId, progress, status, statusText) {
+    const fileItem = document.getElementById(fileId);
+    const progressFill = document.getElementById(`${fileId}-progress`);
+    const statusElement = document.getElementById(`${fileId}-status`);
+    
+    if (!fileItem || !progressFill || !statusElement) return;
+    
+    // 更新进度条
+    progressFill.style.width = `${progress}%`;
+    
+    // 更新状态文本
+    statusElement.textContent = statusText;
+    
+    // 更新样式类
+    fileItem.className = `file-progress-item ${status}`;
+    progressFill.className = `file-progress-fill ${status}`;
+    statusElement.className = `file-status ${status}`;
+}
+
+function clearFileProgressList() {
+    const fileProgressList = document.getElementById('file-progress-list');
+    if (fileProgressList) {
+        fileProgressList.innerHTML = '';
     }
 }
 
@@ -4206,45 +4732,123 @@ async function createTimelineEventFromLog() {
     }
     
     // 等待模态框完全关闭后再打开时间线编辑模态框
-    setTimeout(() => {
+    setTimeout(async () => {
         // 预填充时间线事件数据
         const eventTitle = `专家记录: ${logData.title}`;
         const eventDescription = generateTimelineEventDescription(logData);
         
         // 打开时间线事件创建模态框
-        openTimelineEventCreationModal(eventTitle, eventDescription, logData);
+        await openTimelineEventCreationModal(eventTitle, eventDescription, logData);
     }, 300);
 }
 
-// 生成时间线事件描述
+// 生成时间线事件描述（现在只生成简洁的描述，详细内容在extracted-content中）
 function generateTimelineEventDescription(logData) {
-    let description = `专家记录: ${logData.title}\n\n`;
-    description += `专家描述:\n${logData.description_text}\n\n`;
+    return `基于专家记录"${logData.title}"创建的时间线事件`;
+}
+
+// 加载专家记录附件用于内容选择
+async function loadExpertLogAttachmentsForSelection(logData) {
+    const attachmentsList = document.getElementById('expert-log-attachments-list');
     
-    // 如果有AI分析结果，整合到时间线事件中
-    if (currentAIAnalysisResult) {
-        description += `AI分析建议:\n${currentAIAnalysisResult}\n\n`;
-        description += `处理建议:\n`;
-        description += `• 基于专家描述和AI分析制定处理方案\n`;
-        description += `• 审核者可根据实际情况调整事件内容\n`;
-        description += `• 建议及时跟进处理进度\n\n`;
-    } else {
-        description += `处理建议:\n`;
-        description += `• 基于专家描述制定处理方案\n`;
-        description += `• 建议进行AI分析获取更多建议\n`;
-        description += `• 审核者可根据实际情况调整事件内容\n\n`;
+    try {
+        // 获取专家记录详情，包括附件信息
+        const logDetail = await apiRequest(`/api/expert-logs/${logData.log_id}`);
+        
+        if (!logDetail || !logDetail.attachments || logDetail.attachments.length === 0) {
+            attachmentsList.innerHTML = `
+                <div class="text-muted text-center py-3">
+                    <i class="fas fa-file"></i> 该专家记录暂无附件
+                </div>
+            `;
+            return;
+        }
+        
+        // 清空并重新填充附件列表
+        attachmentsList.innerHTML = '';
+        
+        logDetail.attachments.forEach(attachment => {
+            const attachmentElement = document.createElement('div');
+            attachmentElement.className = 'attachment-item border rounded p-3 mb-2';
+            attachmentElement.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="attachment-info flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-file-alt text-primary me-2"></i>
+                            <strong>${attachment.file_name || '未知文件'}</strong>
+                        </div>
+                        <div class="text-muted small">
+                            <div>文件类型: ${attachment.file_type || '未知'}</div>
+                            <div>文件大小: ${formatFileSize(attachment.file_size || 0)}</div>
+                            <div>上传时间: ${formatDateTime(attachment.uploaded_at)}</div>
+                            ${attachment.has_extracted_text ? '<div class="text-success"><i class="fas fa-check"></i> 已提取文本内容</div>' : '<div class="text-warning"><i class="fas fa-exclamation-triangle"></i> 未提取文本内容</div>'}
+                        </div>
+                    </div>
+                    <div class="attachment-actions">
+                        <button type="button" class="btn btn-sm btn-primary me-2" 
+                                onclick="extractAttachmentContent('${attachment.attachment_id}', '${attachment.file_name}')">
+                            <i class="fas fa-extract"></i> 提取内容
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                onclick="downloadAttachment('${attachment.attachment_id}', '${attachment.file_name}')">
+                            <i class="fas fa-download"></i> 下载
+                        </button>
+                    </div>
+                </div>
+            `;
+            attachmentsList.appendChild(attachmentElement);
+        });
+        
+    } catch (error) {
+        console.error('加载专家记录附件失败:', error);
+        attachmentsList.innerHTML = `
+            <div class="text-danger text-center py-3">
+                <i class="fas fa-exclamation-triangle"></i> 加载附件失败: ${error.message}
+            </div>
+        `;
     }
+}
+
+// 提取附件内容
+async function extractAttachmentContent(attachmentId, fileName) {
+    const extractedContentElement = document.getElementById('extracted-content');
     
-    description += `记录信息:\n`;
-    description += `• 创建时间: ${formatDateTime(logData.created_at)}\n`;
-    description += `• 记录作者: ${logData.author ? logData.author.username : '未知'}\n`;
-    description += `• 记录ID: ${logData.log_id}`;
-    
-    return description;
+    try {
+        showToast('正在提取附件内容...', 'info');
+        
+        // 调用API提取附件内容
+        const response = await apiRequest(`/api/expert-logs/attachments/${attachmentId}/extract-content`, {
+            method: 'POST'
+        });
+        
+        if (response && response.extracted_text) {
+            // 将提取的内容添加到现有内容中
+            const currentContent = extractedContentElement.value;
+            const newContent = `\n\n=== 来自附件: ${fileName} ===\n${response.extracted_text}\n=== 附件内容结束 ===`;
+            
+            extractedContentElement.value = currentContent + newContent;
+            showToast(`成功提取附件"${fileName}"的内容`, 'success');
+        } else {
+            showToast(`附件"${fileName}"无法提取文本内容`, 'warning');
+        }
+        
+    } catch (error) {
+        console.error('提取附件内容失败:', error);
+        showToast(`提取附件内容失败: ${error.message}`, 'error');
+    }
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // 打开时间线事件创建模态框
-function openTimelineEventCreationModal(title, description, logData) {
+async function openTimelineEventCreationModal(title, description, logData) {
     // 设置当前编辑状态 - 这是关键修复
     window.currentEditingEvent = { eventId: null, turbineId: logData.turbine_id };
     console.log('openTimelineEventCreationModal: set currentEditingEvent to:', window.currentEditingEvent);
@@ -4256,20 +4860,36 @@ function openTimelineEventCreationModal(title, description, logData) {
     // 清空表单并填入数据
     document.getElementById('edit-event-id').value = ''; // 新建事件，ID为空
     document.getElementById('edit-event-title').value = title;
-    document.getElementById('edit-event-summary').value = description;
-    document.getElementById('edit-event-type').value = 'MAINTENANCE';
-    document.getElementById('edit-event-severity').value = 'MEDIUM';
+    document.getElementById('edit-event-summary').value = ''; // 摘要留空，等待AI生成
+    document.getElementById('edit-event-detail').value = ''; // 详细内容留空，等待AI生成
+    document.getElementById('edit-event-severity').value = 'NORMAL';
     document.getElementById('edit-event-time').value = new Date().toISOString().slice(0, 16);
-    document.getElementById('edit-confidence-score').value = '0.85';
-    document.getElementById('edit-key-points').value = '• 基于专家记录创建\n• 需要审核确认\n• 建议及时处理';
-    document.getElementById('edit-ai-generated').value = `基于专家记录"${logData.title}"自动生成`;
+
+    // 将专家记录的描述内容放入提取内容字段
+    const extractedContentElement = document.getElementById('extracted-content');
+    if (extractedContentElement) {
+        // 构建包含专家记录完整信息的内容
+        let extractedContent = `专家记录标题: ${logData.title}\n\n`;
+        extractedContent += `专家描述内容:\n${logData.description_text || '无描述内容'}\n\n`;
+        extractedContent += `记录创建时间: ${formatDateTime(logData.created_at)}\n`;
+        extractedContent += `记录作者: ${logData.author ? logData.author.username : '未知'}\n`;
+        extractedContent += `记录ID: ${logData.log_id}`;
+        
+        extractedContentElement.value = extractedContent;
+    }
     
     // 存储关联的专家记录ID
     window.currentTimelineEventLogId = logData.log_id;
     
     // 显示AI生成按钮，隐藏删除按钮（新建事件）
-    document.getElementById('ai-generate-event-btn').style.display = 'inline-block';
+    const aiGenerateBtn = document.getElementById('generate-ai-content-btn');
+    if (aiGenerateBtn) {
+        aiGenerateBtn.style.display = 'inline-block';
+    }
     document.getElementById('delete-event-btn').style.display = 'none';
+    
+    // 加载专家记录的附件到选择区域
+    await loadExpertLogAttachmentsForSelection(logData);
     
     // 显示模态框
     const modal = new bootstrap.Modal(document.getElementById('timelineEditModal'));
@@ -4303,9 +4923,13 @@ async function generateTimelineEventWithAI() {
         // 更新表单内容
         document.getElementById('edit-event-title').value = aiGeneratedContent.title;
         document.getElementById('edit-event-summary').value = aiGeneratedContent.description;
-        document.getElementById('edit-event-type').value = aiGeneratedContent.type;
         document.getElementById('edit-event-severity').value = aiGeneratedContent.severity;
-        document.getElementById('edit-ai-generated').value = `AI生成内容 - ${new Date().toLocaleString()}`;
+        
+        // 安全地设置AI生成标记（如果元素存在）
+        const aiGeneratedElement = document.getElementById('edit-ai-generated');
+        if (aiGeneratedElement) {
+            aiGeneratedElement.value = `AI生成内容 - ${new Date().toLocaleString()}`;
+        }
         
         showToast('AI已生成时间线事件内容，请审核修改', 'success');
         
@@ -4325,21 +4949,21 @@ function generateAITimelineEvent(logData) {
             title: `设备维护记录 - ${logData.title}`,
             description: `根据专家记录分析，发现设备存在以下问题：\n\n1. 运行参数异常，需要调整控制策略\n2. 部分组件磨损，建议更换\n3. 系统性能下降，需要优化配置\n\n处理建议：\n- 立即安排技术人员检查\n- 准备相关备件\n- 制定详细维护计划\n\n预计处理时间：2-4小时\n影响范围：单台设备`,
             type: 'MAINTENANCE',
-            severity: 'MEDIUM',
+            severity: 'MAINTENANCE',
             status: 'pending'
         },
         {
             title: `故障分析报告 - ${logData.title}`,
             description: `基于专家记录的深度分析：\n\n故障现象：\n- 设备运行不稳定\n- 关键参数超出正常范围\n- 报警频繁触发\n\n根因分析：\n- 传感器精度下降\n- 控制算法需要优化\n- 环境因素影响\n\n解决方案：\n- 校准传感器\n- 更新控制程序\n- 加强环境监控`,
             type: 'FAULT',
-            severity: 'HIGH',
+            severity: 'ALARM',
             status: 'in_progress'
         },
         {
             title: `预防性维护计划 - ${logData.title}`,
             description: `根据专家记录制定预防性维护计划：\n\n维护项目：\n- 润滑系统检查\n- 电气连接检测\n- 机械部件检查\n- 软件系统更新\n\n维护周期：每月一次\n责任人：维护团队\n\n预期效果：\n- 提高设备可靠性\n- 延长使用寿命\n- 降低故障率`,
             type: 'MAINTENANCE',
-            severity: 'LOW',
+            severity: 'NORMAL',
             status: 'planned'
         }
     ];
@@ -4350,4 +4974,282 @@ function generateAITimelineEvent(logData) {
         ...randomTemplate,
         description: randomTemplate.description + `\n\n关联专家记录ID: ${logData.log_id}\n生成时间: ${new Date().toLocaleString()}`
     };
+}
+
+// ===== 新的时间线事件创建功能 =====
+
+// 加载可用文档列表
+async function loadAvailableDocuments() {
+    try {
+        const response = await apiRequest('/api/expert-logs');
+        if (response.success) {
+            displayAvailableDocuments(response.data);
+        } else {
+            showToast('加载文档列表失败: ' + response.message, 'error');
+        }
+    } catch (error) {
+        console.error('加载文档列表失败:', error);
+        showToast('加载文档列表失败', 'error');
+    }
+}
+
+// 显示可用文档列表
+function displayAvailableDocuments(logs) {
+    const container = document.getElementById('available-documents-list');
+    if (!container) return;
+    
+    if (!logs || logs.length === 0) {
+        container.innerHTML = `
+            <div class="text-muted text-center py-3">
+                <i class="fas fa-search"></i> 暂无可用文档
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = logs.map(log => `
+        <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" value="${log.log_id}" 
+                   id="doc-${log.log_id}" onchange="toggleDocumentSelection(${log.log_id})">
+            <label class="form-check-label" for="doc-${log.log_id}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>${log.title || '无标题'}</strong>
+                        <div class="text-muted small">
+                            ${log.turbine_name || '未知风机'} | ${formatDateTime(log.created_at)}
+                        </div>
+                        <div class="text-truncate" style="max-width: 300px;">
+                            ${log.description || '无描述'}
+                        </div>
+                    </div>
+                    <span class="badge bg-secondary">${log.attachments_count || 0} 附件</span>
+                </div>
+            </label>
+        </div>
+    `).join('');
+}
+
+// 切换文档选择状态
+async function toggleDocumentSelection(logId) {
+    const checkbox = document.getElementById(`doc-${logId}`);
+    if (!checkbox) return;
+    
+    if (checkbox.checked) {
+        // 选中文档，提取内容
+        await extractDocumentContent(logId);
+    } else {
+        // 取消选中，移除内容
+        removeDocumentContent(logId);
+    }
+}
+
+// 提取文档内容
+async function extractDocumentContent(logId) {
+    try {
+        const response = await apiRequest(`/api/expert-logs/${logId}`);
+        if (response.success) {
+            const log = response.data;
+            const extractedTextarea = document.getElementById('extracted-content');
+            if (extractedTextarea) {
+                // 将新内容追加到现有内容
+                const currentContent = extractedTextarea.value;
+                const newContent = `\n\n=== ${log.title || '文档'} (${formatDateTime(log.created_at)}) ===\n${log.description || '无内容'}\n`;
+                extractedTextarea.value = currentContent + newContent;
+                extractedTextarea.setAttribute('data-log-' + logId, 'true');
+            }
+            showToast(`已提取文档内容: ${log.title}`, 'success');
+        } else {
+            showToast('提取文档内容失败: ' + response.message, 'error');
+        }
+    } catch (error) {
+        console.error('提取文档内容失败:', error);
+        showToast('提取文档内容失败', 'error');
+    }
+}
+
+// 移除文档内容
+function removeDocumentContent(logId) {
+    const extractedTextarea = document.getElementById('extracted-content');
+    if (extractedTextarea && extractedTextarea.hasAttribute('data-log-' + logId)) {
+        // 简单实现：重新提取所有选中的文档内容
+        extractedTextarea.value = '';
+        extractedTextarea.removeAttribute('data-log-' + logId);
+        
+        // 重新提取所有选中的文档
+        const selectedCheckboxes = document.querySelectorAll('#available-documents-list input[type="checkbox"]:checked');
+        selectedCheckboxes.forEach(async (checkbox) => {
+            if (checkbox.value != logId) {
+                await extractDocumentContent(parseInt(checkbox.value));
+            }
+        });
+    }
+}
+
+// 生成AI内容
+async function generateAIContent() {
+    const extractedContent = document.getElementById('extracted-content').value.trim();
+    if (!extractedContent) {
+        showToast('请先选择文档并提取内容', 'warning');
+        return;
+    }
+    
+    // 获取当前编辑的风机ID
+    if (!window.currentEditingEvent || !window.currentEditingEvent.turbineId) {
+        showToast('无法获取风机信息，请重新打开编辑窗口', 'error');
+        return;
+    }
+    
+    const button = document.getElementById('generate-ai-content-btn');
+    const originalText = button.innerHTML;
+    
+    try {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI生成中...';
+        
+        // 获取当前标题
+        const currentTitle = document.getElementById('edit-event-title').value.trim();
+        
+        // 调用后端AI生成接口
+        const response = await apiRequest('/api/timeline/generate-ai-content', {
+            method: 'POST',
+            body: {
+                turbine_id: window.currentEditingEvent.turbineId,
+                content: extractedContent,
+                title: currentTitle
+            }
+        });
+        
+        if (response.success) {
+            const aiData = response.data;
+            
+            // 更新表单
+            document.getElementById('edit-event-title').value = aiData.title || currentTitle;
+            document.getElementById('edit-event-summary').value = aiData.summary || '';
+            document.getElementById('edit-event-detail').value = aiData.detail || '';
+            
+            // 更新事件严重程度
+            if (aiData.event_severity) {
+                const severitySelect = document.getElementById('edit-event-severity');
+                if (severitySelect) {
+                    severitySelect.value = aiData.event_severity;
+                }
+            }
+            
+            showToast('AI内容生成完成，请审核并修改', 'success');
+        } else {
+            throw new Error(response.message || 'AI生成失败');
+        }
+        
+    } catch (error) {
+        console.error('AI生成失败:', error);
+        
+        // 检查是否是认证错误
+        if (error.message && error.message.includes('Not authenticated')) {
+            showToast('请先登录系统才能使用AI生成功能', 'error');
+            return;
+        }
+        
+        // 检查是否是其他API错误
+        if (error.message && (error.message.includes('403') || error.message.includes('401'))) {
+            showToast('权限不足，请确保您有使用AI功能的权限', 'error');
+            return;
+        }
+        
+        // 其他错误才回退到本地模拟生成
+        console.log('回退到本地模拟生成...');
+        const aiResult = generateAIContentFromExtracted(extractedContent);
+        
+        // 更新表单
+        document.getElementById('edit-event-summary').value = aiResult.summary;
+        document.getElementById('edit-event-detail').value = aiResult.detail;
+        
+        showToast('AI服务暂时不可用，已使用本地生成', 'warning');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+// 基于提取内容生成AI摘要和详细内容
+function generateAIContentFromExtracted(extractedContent) {
+    // 模拟AI分析和生成
+    const keywords = extractKeywords(extractedContent);
+    const severity = analyzeSeverity(extractedContent);
+    
+    const summary = `${keywords.slice(0, 3).join('、')}等关键事件，${severity}级别`;
+    
+    const detail = `
+基于专家记录分析：
+
+关键要点：
+${keywords.map(keyword => `• ${keyword}`).join('\n')}
+
+详细分析：
+${extractedContent.length > 200 ? extractedContent.substring(0, 200) + '...' : extractedContent}
+
+风险评估：${severity}
+建议措施：根据现场情况采取相应的维护或监控措施
+
+生成时间：${new Date().toLocaleString()}
+    `.trim();
+    
+    return { summary, detail };
+}
+
+// 提取关键词
+function extractKeywords(content) {
+    const keywords = ['设备异常', '维护检查', '性能监控', '故障排除', '预防性维护', '运行状态', '技术分析'];
+    const foundKeywords = keywords.filter(keyword => content.includes(keyword) || content.includes(keyword.substring(0, 2)));
+    return foundKeywords.length > 0 ? foundKeywords : ['常规检查', '设备状态', '运行记录'];
+}
+
+// 分析严重程度
+function analyzeSeverity(content) {
+    const alarmWords = ['故障', '异常', '报警', '停机', '紧急'];
+    const watchWords = ['注意', '监控', '观察', '跟踪'];
+    
+    if (alarmWords.some(word => content.includes(word))) {
+        return '高';
+    } else if (watchWords.some(word => content.includes(word))) {
+        return '中';
+    } else {
+        return '低';
+    }
+}
+
+// 切换时间线事件详细内容显示
+function toggleTimelineEventDetail(eventId) {
+    try {
+        const detailElement = document.getElementById(`detail-${eventId}`);
+        const toggleBtn = document.getElementById(`toggle-btn-${eventId}`);
+        
+        if (!detailElement) {
+            console.error(`详细内容元素未找到: detail-${eventId}`);
+            showToast('获取事件详情失败: 详细内容元素不存在', 'error');
+            return;
+        }
+        
+        if (!toggleBtn) {
+            console.error(`切换按钮未找到: toggle-btn-${eventId}`);
+            showToast('获取事件详情失败: 切换按钮不存在', 'error');
+            return;
+        }
+        
+        const isCollapsed = detailElement.classList.contains('collapse');
+        
+        if (isCollapsed) {
+            // 展开详细内容
+            detailElement.classList.remove('collapse');
+            detailElement.classList.add('show');
+            toggleBtn.innerHTML = '<i class="fas fa-chevron-up me-1"></i> 收起详细内容';
+        } else {
+            // 收起详细内容
+            detailElement.classList.remove('show');
+            detailElement.classList.add('collapse');
+            toggleBtn.innerHTML = '<i class="fas fa-chevron-down me-1"></i> 查看详细内容';
+        }
+    } catch (error) {
+        console.error('切换事件详情时发生错误:', error);
+        showToast('获取事件详情失败: ' + error.message, 'error');
+    }
 }

@@ -49,14 +49,15 @@ class TextExtractionService:
             'application/msword': self._extract_from_doc,
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': self._extract_from_excel,
             'application/vnd.ms-excel': self._extract_from_excel,
-            'image/jpeg': self._extract_from_image,
-            'image/png': self._extract_from_image,
-            'image/gif': self._extract_from_image,
-            'image/bmp': self._extract_from_image,
-            'image/tiff': self._extract_from_image,
-            'audio/mpeg': self._extract_from_audio,
-            'audio/wav': self._extract_from_audio,
-            'audio/ogg': self._extract_from_audio,
+            # 移除图片和音频处理，避免网络连接问题
+            # 'image/jpeg': self._extract_from_image,
+            # 'image/png': self._extract_from_image,
+            # 'image/gif': self._extract_from_image,
+            # 'image/bmp': self._extract_from_image,
+            # 'image/tiff': self._extract_from_image,
+            # 'audio/mpeg': self._extract_from_audio,
+            # 'audio/wav': self._extract_from_audio,
+            # 'audio/ogg': self._extract_from_audio,
         }
     
     async def extract_text(self, file_path: str, content_type: str) -> Optional[str]:
@@ -71,6 +72,11 @@ class TextExtractionService:
             提取的文本内容，如果失败返回None
         """
         try:
+            # 检查是否为图片或音频文件
+            if content_type.startswith('image/') or content_type.startswith('audio/'):
+                logger.info(f"Skipping text extraction for media file: {content_type}")
+                return None
+            
             if content_type not in self.supported_types:
                 logger.warning(f"Unsupported content type: {content_type}")
                 return None
@@ -161,15 +167,36 @@ class TextExtractionService:
             return None
         
         try:
+            # 检查文件是否存在和可读
+            if not os.path.exists(file_path):
+                logger.error(f"DOCX file not found: {file_path}")
+                return None
+            
+            if not os.access(file_path, os.R_OK):
+                logger.error(f"DOCX file not readable: {file_path}")
+                return None
+            
+            # 检查文件大小
+            file_size = os.path.getsize(file_path)
+            logger.info(f"Processing DOCX file: {file_path}, size: {file_size} bytes")
+            
+            # 尝试打开文档
             doc = Document(file_path)
             text_content = []
             
+            # 提取段落内容
+            paragraph_count = 0
             for paragraph in doc.paragraphs:
                 if paragraph.text.strip():
                     text_content.append(paragraph.text)
+                    paragraph_count += 1
+            
+            logger.info(f"Extracted {paragraph_count} paragraphs from DOCX")
             
             # 提取表格内容
+            table_count = 0
             for table in doc.tables:
+                table_count += 1
                 for row in table.rows:
                     row_text = []
                     for cell in row.cells:
@@ -178,11 +205,140 @@ class TextExtractionService:
                     if row_text:
                         text_content.append(' | '.join(row_text))
             
-            return '\n\n'.join(text_content) if text_content else None
+            logger.info(f"Extracted {table_count} tables from DOCX")
+            
+            result = '\n\n'.join(text_content) if text_content else None
+            if result:
+                logger.info(f"Successfully extracted {len(result)} characters from DOCX")
+            else:
+                logger.warning("No text content found in DOCX file")
+            
+            return result
             
         except Exception as e:
-            logger.error(f"DOCX extraction failed: {str(e)}")
+            error_msg = str(e)
+            logger.error(f"DOCX extraction failed for {file_path}: {error_msg}")
+            
+            # 检查是否是文件损坏的常见错误
+            if "There is no item named" in error_msg or "archive" in error_msg.lower():
+                logger.warning("DOCX file appears to have corrupted references, trying alternative extraction method")
+                # 尝试备用提取方法
+                return self._extract_from_docx_fallback(file_path)
+            elif "Permission denied" in error_msg:
+                logger.error("Permission denied when accessing DOCX file")
+            elif "No such file" in error_msg:
+                logger.error("DOCX file not found")
+            
             return None
+    
+    def _extract_from_docx_fallback(self, file_path: str) -> Optional[str]:
+        """备用DOCX文本提取方法，直接从ZIP文件中提取XML内容"""
+        import zipfile
+        import xml.etree.ElementTree as ET
+        import re
+        
+        try:
+            logger.info(f"Using fallback extraction method for DOCX: {file_path}")
+            
+            text_content = []
+            
+            with zipfile.ZipFile(file_path, 'r') as zip_file:
+                # 提取主文档内容
+                if 'word/document.xml' in zip_file.namelist():
+                    document_xml = zip_file.read('word/document.xml').decode('utf-8')
+                    text_content.extend(self._extract_text_from_xml(document_xml))
+                
+                # 提取页眉页脚内容（跳过有问题的文件）
+                for file_name in zip_file.namelist():
+                    if file_name.startswith('word/header') and file_name.endswith('.xml'):
+                        try:
+                            header_xml = zip_file.read(file_name).decode('utf-8')
+                            text_content.extend(self._extract_text_from_xml(header_xml))
+                        except Exception as e:
+                            logger.warning(f"Skipping problematic header file {file_name}: {e}")
+                    
+                    elif file_name.startswith('word/footer') and file_name.endswith('.xml'):
+                        try:
+                            footer_xml = zip_file.read(file_name).decode('utf-8')
+                            text_content.extend(self._extract_text_from_xml(footer_xml))
+                        except Exception as e:
+                            logger.warning(f"Skipping problematic footer file {file_name}: {e}")
+            
+            result = '\n\n'.join(text_content) if text_content else None
+            if result:
+                logger.info(f"Fallback extraction successful: {len(result)} characters extracted")
+            else:
+                logger.warning("Fallback extraction found no text content")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Fallback DOCX extraction failed: {str(e)}")
+            return None
+    
+    def _extract_text_from_xml(self, xml_content: str) -> list:
+        """从XML内容中提取文本，正确处理段落结构"""
+        import xml.etree.ElementTree as ET
+        import re
+        
+        try:
+            # 移除XML命名空间前缀以简化处理
+            xml_content = re.sub(r'<w:', '<', xml_content)
+            xml_content = re.sub(r'</w:', '</', xml_content)
+            xml_content = re.sub(r'xmlns:w="[^"]*"', '', xml_content)
+            xml_content = re.sub(r'w:', '', xml_content)
+            
+            root = ET.fromstring(xml_content)
+            
+            # 按段落提取文本
+            paragraphs = []
+            paragraph_elements = root.findall('.//p')
+            
+            logger.info(f"Found {len(paragraph_elements)} paragraphs in XML")
+            
+            for p_elem in paragraph_elements:
+                # 提取段落中的所有文本元素
+                text_elements = p_elem.findall('.//t')
+                paragraph_text = []
+                
+                for t_elem in text_elements:
+                    if t_elem.text:
+                        paragraph_text.append(t_elem.text)
+                
+                # 合并段落文本
+                if paragraph_text:
+                    full_paragraph = ''.join(paragraph_text).strip()
+                    if full_paragraph:
+                        paragraphs.append(full_paragraph)
+            
+            logger.info(f"Extracted {len(paragraphs)} non-empty paragraphs")
+            return paragraphs
+            
+        except Exception as e:
+            logger.warning(f"XML text extraction failed: {e}")
+            # 如果XML解析失败，尝试简单的正则表达式提取
+            try:
+                # 先尝试按段落提取
+                paragraph_matches = re.findall(r'<p[^>]*>(.*?)</p>', xml_content, re.DOTALL)
+                paragraphs = []
+                for p_match in paragraph_matches:
+                    text_matches = re.findall(r'<t[^>]*>([^<]+)</t>', p_match)
+                    if text_matches:
+                        paragraph_text = ''.join(text_matches).strip()
+                        if paragraph_text:
+                            paragraphs.append(paragraph_text)
+                
+                if paragraphs:
+                    logger.info(f"Regex extraction found {len(paragraphs)} paragraphs")
+                    return paragraphs
+                else:
+                    # 如果段落提取失败，直接提取所有文本
+                    text_matches = re.findall(r'<t[^>]*>([^<]+)</t>', xml_content)
+                    return [match.strip() for match in text_matches if match.strip()]
+                    
+            except Exception as regex_error:
+                logger.error(f"Regex extraction also failed: {regex_error}")
+                return []
     
     def _extract_from_doc(self, file_path: str) -> Optional[str]:
         """从DOC文件提取文本（需要额外工具）"""

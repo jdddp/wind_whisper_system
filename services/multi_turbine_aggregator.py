@@ -95,9 +95,9 @@ class MultiTurbineAggregator:
             if "故障" in question or "异常" in question:
                 query = query.filter(Turbine.status.in_(["Fault", "Error", "Watch"]))
             elif "正常" in question:
-                query = query.filter(Turbine.status == "Normal")
+                query = query.filter(Turbine.status == "NORMAL")
             elif "维护" in question:
-                query = query.filter(Turbine.status.in_(["Maintenance", "Watch"]))
+                query = query.filter(Turbine.status.in_(["MAINTENANCE", "WATCH"]))
             
             # 限制结果数量，避免处理过多数据
             turbines = query.limit(50).all()
@@ -175,7 +175,7 @@ class MultiTurbineAggregator:
             ).count()
             
             # 统计需要维护的风机
-            maintenance_needed = len([t for t in turbines if t.status in ["Maintenance", "Watch"]])
+            maintenance_needed = len([t for t in turbines if t.status in ["MAINTENANCE", "WATCH"]])
             
             return {
                 "total_maintenance_logs": maintenance_logs,

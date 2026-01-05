@@ -8,6 +8,135 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue.svg)](https://postgresql.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+
+## 🚀 快速开始
+### 📚 项目文档
+- docs/*
+
+### 📋 环境要求
+- **Docker** : 容器化部署
+
+### 🛠️ 安装步骤
+#### Docker快速部署
+
+```bash
+# 克隆项目
+git clone <repository-url>
+cd wind_whisper_rag_system
+
+# 复制环境配置
+cp .env.example .env
+# 编辑 .env 文件配置必要参数
+
+# 使用Docker Compose启动
+docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f
+```
+
+### ✅ 验证部署
+
+1. **访问Web界面**
+   - 打开浏览器访问: http://localhost:8004
+   - 系统将自动加载主界面
+   - 默认管理员账户: `admin` / `admin123` 
+
+### 🎒 备份机制
+
+#### 备份方式
+~~~bash
+# 1、上传过的历史文档原件目录：./uploda
+# 2、数据库文件本地化存储：./pg_data
+# 综上，基于工程目录&docker环境，可直接备份，采用rsync的方式，备份脚本见./备份机制
+
+# 循环模式：判断当前时刻据0点多久后，进入睡眠，直至时间到执行一次备份后；再次判断
+sudo python3 ./备份机制/backup_rsync.py > ./logs/backup_rsync.log &
+~~~
+- 检查./logs/backup_rsync.log & ./logs/remote_sync_backup.log文件，确认备份是否成功
+
+#### 备份后验证
+~~~bash
+'''
+1 33服务器作为备份目标（借助33的已有备份机制）
+2 33服务器上的备份目录：/home/raid5/data_80suanfa/P2401002-风机监测产品项目/JZP/姜志鹏交接内容/2风机产线/4产线琐事/2风机专家知识管理平台
+
+3 33服务器内核版本过低，因此将备份后的文件夹拷贝到50服务器上进行验证：
+jzp@FT:/home/raid5/data_80suanfa/P2401002-风机监测产品项目/JZP/姜志鹏交接内容/2风机产线/4产线琐事/2风机专家知识管理平台$ scp -r wind_whisper_rag_system jzp@192.168.3.50:/home/suanfa-2/jzp 
+
+
+4 50版本docker compose版本不一致，注销docker-compose.yml内的指定gpu设置
+deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: all
+              device_ids: ['0', '1']
+              capabilities: [gpu]
+'''
+
+docker-compose up -d
+
+'''
+打开日志发现报错，因为备份用的jzp账户，docker内部的数据库不存在这个权限，赋权即可：
+Missing argument in printf at /usr/bin/pg_lsclusters line 131.
+ * Starting PostgreSQL 14 database server
+ * Error: The cluster is owned by user id 1002 which does not exist
+
+ 需要给./pd_data 赋权，先查看一下：
+ '''
+ (base) jzp@txkj:/home/suanfa-2/jzp/wind_whisper_rag_system$ docker run --rm --entrypoint bash wind-whisper-rag:latest-with-postgres-external-access -c "id -u postgres"
+'''
+返回101
+'''
+sudo chown -R 101:101 ./pd_data
+'''
+
+docker-compose up -d
+~~~
+
+
+
+## 使用指南
+
+### 1. 系统登录
+- 默认管理员账户: `admin` / `admin123`
+- 首次登录后请及时修改密码
+
+### 2. 风机管理
+- 在"风机管理"页面添加风机信息
+- 支持风场名称、机组编号、型号等信息
+
+### 3. 专家记录
+- 创建监测记录，记录风机运行状态
+- 系统自动生成AI摘要和标签
+- 发布后的记录可用于RAG问答
+
+<!-- ### 4. RAG问答
+- 在"RAG问答"页面提出问题
+- 系统基于历史记录提供智能答案
+- 显示相关来源和相似度评分 -->
+
+### 5. 时间线分析
+- 默认显示所有风机的时间线概览
+- 使用搜索框快速定位特定风机
+- 通过状态筛选查看不同运行状态的风机
+- 点击风机可查看详细的单机时间线
+- 系统自动按状态优先级和最近更新时间排序
+
+## 数据库设计
+
+### 主要数据表
+- `users`: 用户信息
+- `turbines`: 风机信息
+- `expert_logs`: 专家监测记录
+- `log_chunks`: RAG文档分块
+- `attachments`: 附件信息
+
 ## 📖 项目简介
 
 **Wind Whisper RAG System** 是一个专为风力发电行业运维专家设计的智能知识管理和问答系统。系统集成了专家记录管理、智能问答、时间线分析和风机监控等核心功能，为风电运维提供全方位的智能化支持。
@@ -127,8 +256,6 @@
 - **PostgreSQL** (v12+): 
   - 企业级开源关系型数据库
   - 强大的JSON支持，适合半结构化数据
-  - 丰富的扩展生态，支持全文搜索
-  - ACID事务保证数据一致性
   
 - **pgvector** (v0.5+): 
   - PostgreSQL向量数据库扩展
@@ -136,30 +263,22 @@
   - 内置多种距离算法（欧几里得、余弦、内积）
   - 索引优化，支持大规模向量检索
   
-- **Alembic**: 
+<!-- - **Alembic**: 
   - SQLAlchemy官方数据库迁移工具
   - 版本化数据库schema管理
   - 支持自动生成迁移脚本
-  - 回滚和前滚操作，确保部署安全
+  - 回滚和前滚操作，确保部署安全 -->
 
 ### 🤖 AI/ML技术栈
 - **Sentence Transformers** (v2.2+): 
   - 基于BERT的文本嵌入模型库
   - 支持中文语义理解和向量化
-  - 预训练模型丰富，可快速部署
-  - 支持模型微调和自定义训练
   
-- **OpenAI API** (GPT-3.5/4): 
+<!-- - **OpenAI API** (GPT-3.5/4): 
   - 业界领先的大语言模型服务
   - 支持文本生成、摘要、问答等任务
   - 可配置的API参数，控制输出质量
-  - 支持流式输出，提升用户体验
-  
-- **NumPy** (v1.24+): 
-  - 高性能数值计算库
-  - 向量运算和矩阵操作优化
-  - 与机器学习库无缝集成
-  - 内存高效的数组操作
+  - 支持流式输出，提升用户体验 -->
 
 ### 🎨 前端技术栈
 - **Bootstrap 5** (v5.3+): 
@@ -194,76 +313,6 @@
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-## 🚀 快速开始
-
-### 📋 环境要求
-- **Docker** : 容器化部署
-
-### 🛠️ 安装步骤
-#### 方式二：Docker快速部署
-
-```bash
-# 克隆项目
-git clone <repository-url>
-cd wind_whisper_rag_system
-
-# 复制环境配置
-cp .env.example .env
-# 编辑 .env 文件配置必要参数
-
-# 使用Docker Compose启动
-docker-compose up -d
-
-# 查看服务状态
-docker-compose ps
-
-# 查看日志
-docker-compose logs -f
-```
-
-### ✅ 验证安装
-
-1. **访问Web界面**
-   - 打开浏览器访问: http://localhost:8004
-   - 系统将自动加载主界面
-   - 默认管理员账户: `admin` / `admin123` 
-
-## 使用指南
-
-### 1. 系统登录
-- 默认管理员账户: `admin` / `admin123`
-- 首次登录后请及时修改密码
-
-### 2. 风机管理
-- 在"风机管理"页面添加风机信息
-- 支持风场名称、机组编号、型号等信息
-
-### 3. 专家记录
-- 创建监测记录，记录风机运行状态
-- 系统自动生成AI摘要和标签
-- 发布后的记录可用于RAG问答
-
-### 4. RAG问答
-- 在"RAG问答"页面提出问题
-- 系统基于历史记录提供智能答案
-- 显示相关来源和相似度评分
-
-### 5. 时间线分析
-- 默认显示所有风机的时间线概览
-- 使用搜索框快速定位特定风机
-- 通过状态筛选查看不同运行状态的风机
-- 点击风机可查看详细的单机时间线
-- 系统自动按状态优先级和最近更新时间排序
-
-## 数据库设计
-
-### 主要数据表
-- `users`: 用户信息
-- `turbines`: 风机信息
-- `expert_logs`: 专家监测记录
-- `log_chunks`: RAG文档分块
-- `attachments`: 附件信息
-
 ## 开发指南
 
 ### 项目结构
@@ -287,62 +336,12 @@ wind_whisper_rag_system/
 3. 在 `api/` 中实现路由
 4. 在 `services/` 中实现业务逻辑
 
-### 数据库迁移
+<!-- ### 数据库迁移
 ```bash
 # 生成迁移文件
 alembic revision --autogenerate -m "描述"
 
 # 执行迁移
 alembic upgrade head
-```
+``` -->
 
-## 部署指南
-
-### Docker部署
-```bash
-# 构建镜像
-docker build -t wind-whisper-rag .
-
-# 运行容器
-docker run -p 8000:8000 --env-file .env wind-whisper-rag
-```
-
-### 生产环境配置
-- 使用 Gunicorn 作为 WSGI 服务器
-- 配置 Nginx 反向代理
-- 启用 HTTPS
-- 配置日志轮转
-- 设置监控和告警
-
-## 故障排除
-
-### 常见问题
-
-1. **数据库连接失败**
-   - 检查 PostgreSQL 服务状态
-   - 验证 DATABASE_URL 配置
-   - 确认数据库用户权限
-
-2. **pgvector扩展问题**
-   - 安装 pgvector 扩展
-   - 检查 PostgreSQL 版本兼容性
-
-3. **AI功能不可用**
-   - 检查 OPENAI_API_KEY 配置
-   - 验证网络连接
-   - 查看模型可用性
-
-## 贡献指南
-
-1. Fork 项目
-2. 创建功能分支
-3. 提交更改
-4. 发起 Pull Request
-
-## 许可证
-
-本项目采用 MIT 许可证。
-
-## 联系方式
-
-如有问题或建议，请联系项目维护者。

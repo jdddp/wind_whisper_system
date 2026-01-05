@@ -1,26 +1,10 @@
 import uuid
-import enum
 from sqlalchemy import Column, String, Text, DateTime, Enum, ForeignKey, JSON, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
-
-class StatusTag(str, enum.Enum):
-    NORMAL = "Normal"
-    WATCH = "Watch"
-    ALARM = "Alarm"
-    MAINTENANCE = "Maintenance"
-    UNKNOWN = "Unknown"
-
-class LogStatus(str, enum.Enum):
-    DRAFT = "draft"
-    PUBLISHED = "published"
-
-class AIReviewStatus(str, enum.Enum):
-    UNREVIEWED = "unreviewed"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+from .enums import TurbineStatus, LogStatus, AIReviewStatus
 
 class ExpertLog(Base):
     __tablename__ = "expert_logs"
@@ -29,7 +13,7 @@ class ExpertLog(Base):
     turbine_id = Column(UUID(as_uuid=True), ForeignKey("turbines.turbine_id"), nullable=False)
     author_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
     
-    status_tag = Column(Enum(StatusTag), nullable=False, default=StatusTag.UNKNOWN)
+    status_tag = Column(Enum(TurbineStatus), nullable=False, default=TurbineStatus.UNKNOWN)
     description_text = Column(Text, nullable=False)
     log_status = Column(Enum(LogStatus), nullable=False, default=LogStatus.DRAFT)
     

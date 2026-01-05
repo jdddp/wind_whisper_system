@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 
 from models import ExpertLog, Turbine, IntelligentAnalysis
-from models.timeline import TimelineEvent, TimelineSourceLog, EventType, EventSeverity
+from models.timeline import TimelineEvent, TimelineSourceLog
+from models.enums import TurbineStatus
 from services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
@@ -247,8 +248,8 @@ class IntelligentSummaryService:
         timeline_content = []
         for event in timeline_events[:10]:  # 最多取10条
             if hasattr(event, 'description') and event.description:
-                event_type = event.event_type.value if hasattr(event, 'event_type') and event.event_type else "未知"
-                timeline_content.append(f"[{event_type}] {event.description}")
+                event_severity = event.event_severity.value if hasattr(event, 'event_severity') and event.event_severity else "未知"
+                timeline_content.append(f"[{event_severity}] {event.description}")
         
         prompt = f"""请为风机{turbine.unit_id}（位于{turbine.location}，型号{turbine.model}）生成一段自然流畅的运维总结。
 
@@ -340,17 +341,17 @@ class IntelligentSummaryService:
         
         # 时间线事件统计
         if timeline_events:
-            event_types = {}
+            event_severities = {}
             for event in timeline_events:
-                if hasattr(event, 'event_type') and event.event_type:
-                    event_type = event.event_type.value
-                    event_types[event_type] = event_types.get(event_type, 0) + 1
+                if hasattr(event, 'event_severity') and event.event_severity:
+                    event_severity = event.event_severity.value
+                    event_severities[event_severity] = event_severities.get(event_severity, 0) + 1
             
             summary_parts.append(f"同期发生{len(timeline_events)}个时间线事件。")
             
-            if event_types:
-                event_desc = "、".join([f"{k}类事件{v}个" for k, v in event_types.items()])
-                summary_parts.append(f"事件类型分布：{event_desc}。")
+            if event_severities:
+                event_desc = "、".join([f"{k}状态事件{v}个" for k, v in event_severities.items()])
+                summary_parts.append(f"事件状态分布：{event_desc}。")
         
         if not expert_logs and not timeline_events:
             summary_parts.append(f"最近{days_back}天内暂无专家记录和时间线事件。")
@@ -430,16 +431,16 @@ class IntelligentSummaryService:
         # 统计时间线事件的详细信息
         timeline_stats = {
             "total_events": len(timeline_events),
-            "event_types": {},
+            "event_severities": {},
             "recent_events": [],
             "time_distribution": {},
             "severity_distribution": {}
         }
         
         for event in timeline_events:
-            # 统计事件类型
-            event_type = event.event_type or "未分类"
-            timeline_stats["event_types"][event_type] = timeline_stats["event_types"].get(event_type, 0) + 1
+            # 统计事件严重程度
+            event_severity = event.event_severity or "未分类"
+            timeline_stats["event_severities"][event_severity] = timeline_stats["event_severities"].get(event_severity, 0) + 1
             
             # 统计时间分布（按日期）
             date_key = event.event_time.strftime("%Y-%m-%d")
@@ -453,7 +454,7 @@ class IntelligentSummaryService:
             event_description = event.title or event.summary or "无描述"
             timeline_stats["recent_events"].append({
                 "date": event.event_time.strftime("%Y-%m-%d %H:%M"),
-                "type": event_type,
+                "type": str(event_severity),
                 "severity": str(severity),
                 "title": event.title or "无标题",
                 "summary": event.summary or "无摘要",
@@ -534,7 +535,7 @@ class IntelligentSummaryService:
 
 时间线事件统计（{data_summary['analysis_period']}）：
 - 总事件数：{data_summary['timeline_stats']['total_events']}条
-- 事件类型分布：{data_summary['timeline_stats']['event_types']}
+- 事件状态分布：{data_summary['timeline_stats']['event_severities']}
 - 时间分布：{data_summary['timeline_stats']['time_distribution']}
 - 严重程度分布：{data_summary['timeline_stats']['severity_distribution']}
 
@@ -621,8 +622,8 @@ class IntelligentSummaryService:
 {self._format_type_distribution(expert_stats['content_keywords'])}
 
 ### 时间线事件详细统计
-#### 类型分布
-{self._format_type_distribution(timeline_stats['event_types'])}
+#### 状态分布
+{self._format_type_distribution(timeline_stats['event_severities'])}
 
 #### 时间分布
 {self._format_type_distribution(timeline_stats['time_distribution'])}
@@ -667,9 +668,8 @@ class IntelligentSummaryService:
         # 准备时间线事件文本
         event_texts = []
         for i, event in enumerate(timeline_events[:20]):  # 分析最多20条
-            severity_text = event.severity.value if event.severity else "未知"
-            event_type_text = event.event_type.value if event.event_type else "未知"
-            event_texts.append(f"事件{i+1}: [{event.event_time.strftime('%Y-%m-%d %H:%M')}] [{severity_text}] [{event_type_text}] {event.description}")
+            severity_text = event.event_severity.value if event.event_severity else "未知"
+            event_texts.append(f"事件{i+1}: [{event.event_time.strftime('%Y-%m-%d %H:%M')}] [{severity_text}] {event.description}")
         
         prompt = f"""
 请对以下风机时间线事件进行深度语义分析，识别事件模式和关联性：

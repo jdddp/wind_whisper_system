@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-from models.timeline import EventType, EventSeverity
+from models.enums import TurbineStatus
 
 class TimelineSourceLogResponse(BaseModel):
     """时间线源记录响应"""
@@ -18,10 +18,10 @@ class TimelineEventResponse(BaseModel):
     event_id: str
     turbine_id: str
     event_time: datetime
-    event_type: EventType
-    event_severity: EventSeverity
+    event_severity: TurbineStatus
     title: str
     summary: str
+    detail: Optional[str] = None
     key_points: Optional[List[str]] = None
     confidence_score: Optional[float] = None
     is_verified: bool
@@ -36,10 +36,10 @@ class TimelineEventCreate(BaseModel):
     """创建时间线事件"""
     turbine_id: str
     event_time: datetime
-    event_type: EventType
-    event_severity: EventSeverity
+    event_severity: TurbineStatus
     title: str
     summary: str
+    detail: Optional[str] = None
     key_points: Optional[List[str]] = None
     confidence_score: Optional[float] = None
     source_log_ids: List[str] = []
@@ -47,10 +47,10 @@ class TimelineEventCreate(BaseModel):
 class TimelineEventUpdate(BaseModel):
     """更新时间线事件"""
     event_time: Optional[datetime] = None
-    event_type: Optional[EventType] = None
-    event_severity: Optional[EventSeverity] = None
+    event_severity: Optional[TurbineStatus] = None
     title: Optional[str] = None
     summary: Optional[str] = None
+    detail: Optional[str] = None
     key_points: Optional[List[str]] = None
     confidence_score: Optional[float] = None
     is_verified: Optional[bool] = None

@@ -1,6 +1,7 @@
 /uploads
-/ai_models/bege-m3/*
-/ai_models/Qwen2.5-0.5B-Instruct/*
+/ai_models
 *log
 /logs
 /data
+/dockers
+/pg_data

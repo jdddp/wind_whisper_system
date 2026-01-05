@@ -129,6 +129,152 @@
             border-left-color: #28a745;
         }
         
+        /* 机组状态卡片样式 */
+        .card-sm {
+            font-size: 0.875rem;
+        }
+        
+        .card-sm .card-body {
+            padding: 0.75rem;
+        }
+        
+        .turbine-status-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .turbine-status-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .turbine-status-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .turbine-status-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        .turbine-status-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* 上传进度样式 */
+        #upload-progress-container {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+        }
+        
+        .file-progress-item {
+            background-color: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 0.25rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .file-progress-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .file-progress-item.uploading {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        
+        .file-progress-item.completed {
+            border-color: #28a745;
+            background-color: #f8fff9;
+        }
+        
+        .file-progress-item.error {
+            border-color: #dc3545;
+            background-color: #fff5f5;
+        }
+        
+        .file-progress-bar {
+            height: 4px;
+            background-color: #e9ecef;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        
+        .file-progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+        
+        .file-progress-fill.completed {
+            background-color: #28a745;
+        }
+        
+        .file-progress-fill.error {
+            background-color: #dc3545;
+        }
+        
+        .file-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            color: #495057;
+            flex: 1;
+            margin-right: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .file-size {
+            color: #6c757d;
+            font-size: 0.75rem;
+        }
+        
+        .file-status {
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .file-status.uploading {
+            color: #007bff;
+        }
+        
+        .file-status.completed {
+            color: #28a745;
+        }
+        
+        .file-status.error {
+            color: #dc3545;
+        }
+        
+        /* 进度条动画 */
+        @keyframes progress-pulse {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+        
+        .progress-bar-animated.uploading {
+            animation: progress-pulse 1.5s ease-in-out infinite;
+        }
 
     </style>
 </head>
@@ -194,35 +340,7 @@
                 <div id="dashboard-section" class="content-section">
                     <h2>驾驶舱</h2>
                     
-                    <!-- 核心统计 -->
-                    <div class="row mb-4">
-                        <div class="col-md-4">
-                            <div class="card text-center">
-                                <div class="card-body">
-                                    <h5 class="card-title">风机总数</h5>
-                                    <h3 class="text-primary" id="total-turbines">-</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card text-center">
-                                <div class="card-body">
-                                    <h5 class="card-title">专家记录总数</h5>
-                                    <h3 class="text-info" id="total-expert-logs">-</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card text-center">
-                                <div class="card-body">
-                                    <h5 class="card-title">告警机组数</h5>
-                                    <h3 class="text-danger" id="alarm-turbines-count">-</h3>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 状态分布 -->
+                    <!-- 专家记录状态分布 -->
                     <div class="row mb-4">
                         <div class="col-md-12">
                             <div class="card">
@@ -238,15 +356,44 @@
                         </div>
                     </div>
                     
-                    <!-- 告警机组列表 -->
+                    <!-- 机组状态展示 -->
                     <div class="row mb-4">
-                        <div class="col-md-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5><i class="bi bi-exclamation-triangle text-danger"></i> 告警机组</h5>
+                        <!-- 告警机组 -->
+                        <div class="col-lg-4 mb-3">
+                            <div class="card border-danger">
+                                <div class="card-header bg-danger text-white">
+                                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i>告警机组</h5>
                                 </div>
                                 <div class="card-body">
-                                    <div id="alarm-turbines">
+                                    <div id="alarm-turbines" class="turbine-status-container">
+                                        <p class="text-muted">加载中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 观察机组 -->
+                        <div class="col-lg-4 mb-3">
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning text-dark">
+                                    <h5 class="mb-0"><i class="bi bi-eye-fill me-2"></i>观察机组</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="watch-turbines" class="turbine-status-container">
+                                        <p class="text-muted">加载中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 维护机组 -->
+                        <div class="col-lg-4 mb-3">
+                            <div class="card border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0"><i class="bi bi-tools me-2"></i>维护机组</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="maintenance-turbines" class="turbine-status-container">
                                         <p class="text-muted">加载中...</p>
                                     </div>
                                 </div>
@@ -341,11 +488,11 @@
                                     <label class="form-label">状态过滤</label>
                                     <select class="form-select" id="turbine-status-filter" onchange="filterTurbines()">
                                         <option value="">全部状态</option>
-                                        <option value="Alarm">告警</option>
-                                        <option value="Watch">观察</option>
-                                        <option value="Maintenance">维护</option>
-                                        <option value="Normal">正常</option>
-                                        <option value="Unknown">未知</option>
+                                        <option value="ALARM">告警</option>
+                                        <option value="WATCH">观察</option>
+                                        <option value="MAINTENANCE">维护</option>
+                                        <option value="NORMAL">正常</option>
+                                        <option value="UNKNOWN">未知</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4">
@@ -423,7 +570,7 @@
                     <h2>风机管理</h2>
                     
                     <div class="mb-3">
-                        <button class="btn btn-primary" onclick="showAddTurbineModal()">
+                        <button class="btn btn-primary" id="add-turbine-btn" onclick="showAddTurbineModal()">
                             <i class="bi bi-plus"></i> 添加风机
                         </button>
                     </div>
@@ -565,11 +712,11 @@
                             <label for="status" class="form-label">状态</label>
                             <select class="form-select" id="status">
                                 <option value="">请选择状态</option>
-                                <option value="Normal">正常</option>
-                                <option value="Watch">观察</option>
-                                <option value="Alarm">告警</option>
-                                <option value="Maintenance">维护</option>
-                                <option value="Unknown">未知</option>
+                                <option value="NORMAL">正常</option>
+                                <option value="WATCH">观察</option>
+                                <option value="ALARM">告警</option>
+                                <option value="MAINTENANCE">维护</option>
+                                <option value="UNKNOWN">未知</option>
                             </select>
                         </div>
                     </form>
@@ -617,11 +764,11 @@
                             <label for="edit_status" class="form-label">状态</label>
                             <select class="form-select" id="edit_status">
                                 <option value="">请选择状态</option>
-                                <option value="Normal">正常</option>
-                                <option value="Watch">观察</option>
-                                <option value="Alarm">告警</option>
-                                <option value="Maintenance">维护</option>
-                                <option value="Unknown">未知</option>
+                                <option value="NORMAL">正常</option>
+                                <option value="WATCH">观察</option>
+                                <option value="ALARM">告警</option>
+                                <option value="MAINTENANCE">维护</option>
+                                <option value="UNKNOWN">未知</option>
                             </select>
                         </div>
                     </form>
@@ -654,11 +801,11 @@
                             <label for="log-status-tag" class="form-label">状态标签</label>
                             <select class="form-select" id="log-status-tag" required>
                                 <option value="">请选择状态</option>
-                                <option value="Normal">正常</option>
-                                <option value="Alarm">告警</option>
-                                <option value="Watch">观察</option>
-                                <option value="Maintenance">维护</option>
-                                <option value="Unknown">未知</option>
+                                <option value="NORMAL">正常</option>
+                                <option value="ALARM">告警</option>
+                                <option value="WATCH">观察</option>
+                                <option value="MAINTENANCE">维护</option>
+                                <option value="UNKNOWN">未知</option>
                             </select>
                             <div class="form-text">
                                 <i class="bi bi-info-circle"></i> 
@@ -686,10 +833,37 @@
                         
 
                     </form>
+                    
+                    <!-- 上传进度显示区域 -->
+                    <div id="upload-progress-container" class="mt-3" style="display: none;">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <span id="upload-status-text" class="text-muted">正在创建专家记录...</span>
+                        </div>
+                        
+                        <!-- 总体进度条 -->
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <small class="text-muted">总体进度</small>
+                                <small id="overall-progress-text" class="text-muted">0%</small>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div id="overall-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 文件上传进度列表 -->
+                        <div id="file-progress-list" class="mt-2">
+                            <!-- 动态生成的文件进度项 -->
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" onclick="createExpertLog()">创建记录</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="cancel-upload-btn">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="createExpertLog()" id="create-log-btn">创建记录</button>
                 </div>
             </div>
         </div>
@@ -708,60 +882,7 @@
                         <!-- 记录详情内容 -->
                     </div>
                     
-                    <!-- AI分析区域 -->
-                    <div id="ai-analysis-section" class="mt-4" style="display: none;">
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">
-                                    <i class="bi bi-robot"></i> AI分析
-                                </h6>
-                            </div>
-                            <div class="card-body">
-                                <!-- 文件选择区域 -->
-                                <div id="file-selection-area" class="mb-3">
-                                    <label class="form-label">选择要分析的文件：</label>
-                                    <div id="available-files-list" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
-                                        <!-- 可选择的文件列表 -->
-                                    </div>
-                                    <div class="mt-2">
-                                        <button type="button" class="btn btn-primary" onclick="performAIAnalysis()">
-                                            <i class="bi bi-cpu"></i> 开始AI分析
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <!-- AI分析结果区域 -->
-                                <div id="ai-analysis-results" style="display: none;">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <label class="form-label mb-0">AI分析结果：</label>
-                                        <div>
-                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="editAIAnalysis()">
-                                                <i class="bi bi-pencil"></i> 编辑
-                                            </button>
-                                            <button type="button" class="btn btn-sm btn-outline-success" onclick="applyAIAnalysis()">
-                                                <i class="bi bi-check"></i> 应用到记录
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div id="ai-analysis-display">
-                                        <!-- AI分析结果显示 -->
-                                    </div>
-                                    <div id="ai-analysis-edit" style="display: none;">
-                                        <textarea class="form-control" id="ai-analysis-editor" rows="8" 
-                                                  placeholder="编辑AI分析结果..."></textarea>
-                                        <div class="mt-2">
-                                            <button type="button" class="btn btn-sm btn-success" onclick="saveAIAnalysis()">
-                                                <i class="bi bi-check"></i> 保存
-                                            </button>
-                                            <button type="button" class="btn btn-sm btn-secondary" onclick="cancelAIAnalysisEdit()">
-                                                <i class="bi bi-x"></i> 取消
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+
                     
                     <!-- 内容编辑区域 -->
                     <div id="content-edit-section" class="mt-4" style="display: none;">
@@ -860,41 +981,21 @@
                     <form id="timelineEditForm">
                         <input type="hidden" id="edit-event-id">
                         
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="edit-event-time" class="form-label">事件时间</label>
-                                <input type="datetime-local" class="form-control" id="edit-event-time" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="edit-event-type" class="form-label">事件类型</label>
-                                <select class="form-select" id="edit-event-type" required>
-                                    <option value="">请选择事件类型</option>
-                                    <option value="NORMAL">正常</option>
-                                    <option value="ALARM">告警</option>
-                                    <option value="WATCH">观察</option>
-                                    <option value="MAINTENANCE">维护</option>
-                                    <option value="UNKNOWN">未知</option>
-                                    <option value="OTHER">其他</option>
-                                </select>
-                            </div>
+                        <div class="mb-3">
+                            <label for="edit-event-time" class="form-label">事件时间</label>
+                            <input type="datetime-local" class="form-control" id="edit-event-time" required>
                         </div>
                         
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="edit-event-severity" class="form-label">严重程度</label>
-                                <select class="form-select" id="edit-event-severity" required>
-                                    <option value="">请选择严重程度</option>
-                                    <option value="NORMAL">正常</option>
-                                    <option value="LOW">低</option>
-                                    <option value="MEDIUM">中</option>
-                                    <option value="HIGH">高</option>
-                                    <option value="CRITICAL">严重</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="edit-confidence-score" class="form-label">置信度</label>
-                                <input type="number" class="form-control" id="edit-confidence-score" min="0" max="1" step="0.01" placeholder="0.00-1.00">
-                            </div>
+                        <div class="mb-3">
+                            <label for="edit-event-severity" class="form-label">事件严重程度</label>
+                            <select class="form-select" id="edit-event-severity" required>
+                                <option value="">请选择严重程度</option>
+                                <option value="NORMAL">正常</option>
+                                <option value="MAINTENANCE">维护</option>
+                                <option value="WATCH">观察</option>
+                                <option value="ALARM">告警</option>
+                                <option value="UNKNOWN">未知</option>
+                            </select>
                         </div>
                         
                         <div class="mb-3">
@@ -902,28 +1003,68 @@
                             <input type="text" class="form-control" id="edit-event-title" required>
                         </div>
                         
-                        <div class="mb-3">
-                            <label for="edit-event-summary" class="form-label">事件摘要</label>
-                            <textarea class="form-control" id="edit-event-summary" rows="3" required></textarea>
+                        <!-- Step 1: 文档选择和内容提取 -->
+                        <div class="mb-4">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-file-alt"></i> Step 1: 选择文档内容
+                            </h6>
+                            
+                            <!-- 专家记录附件列表 -->
+                            <div class="mb-3">
+                                <label class="form-label">专家记录附件</label>
+                                <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                    <div id="expert-log-attachments-list">
+                                        <div class="text-muted text-center py-3">
+                                            <i class="fas fa-file"></i> 暂无附件
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text">选择专家记录中的附件来提取内容</div>
+                            </div>
+                            
+                            <!-- 提取的原始内容 -->
+                            <div class="mb-3">
+                                <label for="extracted-content" class="form-label">提取的原始内容</label>
+                                <textarea class="form-control" id="extracted-content" rows="4" placeholder="选择文档后，原始内容将显示在这里，您可以手动修改..."></textarea>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="loadAvailableDocuments()">
+                                        <i class="fas fa-refresh"></i> 刷新文档列表
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         
-                        <div class="mb-3">
-                            <label for="edit-key-points" class="form-label">关键点</label>
-                            <textarea class="form-control" id="edit-key-points" rows="4" placeholder="每行一个关键点"></textarea>
+                        <!-- Step 2: AI生成摘要和详细内容 -->
+                        <div class="mb-4">
+                            <h6 class="text-primary mb-3">
+                                <i class="fas fa-robot"></i> Step 2: AI生成内容
+                            </h6>
+                            
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-success" onclick="generateAIContent()" id="generate-ai-content-btn">
+                                    <i class="fas fa-magic"></i> 调用大模型生成摘要和详细内容
+                                </button>
+                                <div class="form-text">基于提取的内容，AI将自动生成摘要和详细内容</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="edit-event-summary" class="form-label">事件摘要 (AI生成)</label>
+                                <textarea class="form-control" id="edit-event-summary" rows="3" required placeholder="AI将在这里生成简要摘要，您可以手动修改..."></textarea>
+                                <div class="form-text">用于时间线显示的简要摘要</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="edit-event-detail" class="form-label">详细内容 (AI生成)</label>
+                                <textarea class="form-control" id="edit-event-detail" rows="6" placeholder="AI将在这里生成详细内容，您可以手动修改..."></textarea>
+                                <div class="form-text">点击时间线事件时展开显示的详细内容</div>
+                            </div>
                         </div>
                         
-                        <div class="mb-3">
-                            <label for="edit-ai-generated" class="form-label">AI生成内容</label>
-                            <textarea class="form-control" id="edit-ai-generated" rows="3" readonly></textarea>
-                            <div class="form-text">此字段为只读，显示原始AI生成的内容</div>
-                        </div>
+
                     </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-info" onclick="generateTimelineEventWithAI()" id="ai-generate-event-btn" style="display: none;">
-                        <i class="bi bi-robot"></i> AI生成内容
-                    </button>
                     <button type="button" class="btn btn-danger" onclick="deleteTimelineEvent()" id="delete-event-btn">
                         <i class="bi bi-trash"></i> 删除事件
                     </button>

@@ -32,11 +32,11 @@ function updateUIBasedOnUserRole() {
         }
     }
     
-    // 风机管理菜单项 - 只有ADMIN和EXPERT角色可以访问
+    // 风机管理菜单项 - ADMIN, EXPERT, READER角色可以访问
     const turbinesNav = document.querySelector('a[onclick="showSection(\'turbines\')"]');
     if (turbinesNav) {
         const turbinesNavItem = turbinesNav.closest('.nav-item');
-        if (userRole === 'ADMIN' || userRole === 'EXPERT') {
+        if (userRole === 'ADMIN' || userRole === 'EXPERT' || userRole === 'READER') {
             if (turbinesNavItem) turbinesNavItem.style.display = 'block';
         } else {
             if (turbinesNavItem) turbinesNavItem.style.display = 'none';
@@ -396,6 +396,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (originalUpdateUserInfo) {
             originalUpdateUserInfo();
         }
-        updateUIBasedOnUserRole();
+        // 确保在用户信息更新后再根据角色更新UI
+        if(currentUser) {
+            updateUIBasedOnUserRole();
+        }
     };
 });

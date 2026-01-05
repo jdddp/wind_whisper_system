@@ -5,7 +5,7 @@ import uuid
 import logging
 
 from models import get_db, TimelineEvent, TimelineSourceLog, ExpertLog, Turbine, Attachment
-from models.timeline import EventType, EventSeverity
+from models.enums import TurbineStatus
 from schemas.timeline import (
     TimelineEventResponse, 
     TimelineEventCreate, 
@@ -15,6 +15,7 @@ from schemas.timeline import (
 )
 from services.timeline_ai_service import TimelineAIService
 from services.intelligent_summary_service import IntelligentSummaryService
+from services.turbine_status_service import update_turbine_status_from_timeline, batch_update_all_turbine_status
 from utils.dependencies import get_current_user, get_current_admin_user, get_current_admin_or_expert_for_user_management
 
 logger = logging.getLogger(__name__)
@@ -67,10 +68,10 @@ async def get_all_timeline_events(
                 event_id=str(event.event_id),
                 turbine_id=str(event.turbine_id),
                 event_time=event.event_time,
-                event_type=event.event_type,
                 event_severity=event.event_severity,
                 title=event.title,
                 summary=event.summary,
+                detail=event.detail,
                 key_points=event.key_points or [],
                 confidence_score=float(event.confidence_score) if event.confidence_score else None,
                 is_verified=event.is_verified,
@@ -127,7 +128,7 @@ async def generate_timeline(
             existing_event = db.query(TimelineEvent).filter(
                 TimelineEvent.turbine_id == request.turbine_id,
                 TimelineEvent.event_time == event_data['event_time'],
-                TimelineEvent.event_type == event_data['event_type']
+                TimelineEvent.event_severity == event_data['event_severity']
             ).first()
             
             if existing_event and not request.force_regenerate:
@@ -143,7 +144,6 @@ async def generate_timeline(
                 new_event = TimelineEvent(
                     turbine_id=request.turbine_id,
                     event_time=event_data['event_time'],
-                    event_type=event_data['event_type'],
                     event_severity=event_data['event_severity'],
                     title=event_data['title'],
                     summary=event_data['summary'],
@@ -253,10 +253,10 @@ async def get_turbine_timeline(
                 "event_id": str(event.event_id),
                 "turbine_id": str(event.turbine_id),
                 "event_time": event.event_time,
-                "event_type": event.event_type,
                 "event_severity": event.event_severity,
                 "title": event.title,
                 "summary": event.summary,
+                "detail": event.detail,
                 "key_points": event.key_points or [],
                 "confidence_score": float(event.confidence_score) if event.confidence_score else None,
                 "is_verified": event.is_verified,
@@ -322,10 +322,10 @@ async def get_timeline_event(
             event_id=str(event.event_id),
             turbine_id=str(event.turbine_id),
             event_time=event.event_time,
-            event_type=event.event_type,
             event_severity=event.event_severity,
             title=event.title,
             summary=event.summary,
+            detail=event.detail,
             key_points=event.key_points or [],
             confidence_score=float(event.confidence_score) if event.confidence_score else None,
             is_verified=event.is_verified,
@@ -367,6 +367,9 @@ async def update_timeline_event(
         db.commit()
         db.refresh(event)
         
+        # 更新风机状态基于最新时间线事件
+        update_turbine_status_from_timeline(db, str(event.turbine_id))
+        
         # 获取源记录信息
         source_logs = []
         for source in event.source_logs:
@@ -383,10 +386,10 @@ async def update_timeline_event(
             event_id=str(event.event_id),
             turbine_id=str(event.turbine_id),
             event_time=event.event_time,
-            event_type=event.event_type,
             event_severity=event.event_severity,
             title=event.title,
             summary=event.summary,
+            detail=event.detail,
             key_points=event.key_points or [],
             confidence_score=float(event.confidence_score) if event.confidence_score else None,
             is_verified=event.is_verified,
@@ -420,8 +423,12 @@ async def delete_timeline_event(
                 detail="时间线事件不存在"
             )
         
+        turbine_id = str(event.turbine_id)
         db.delete(event)
         db.commit()
+        
+        # 删除事件后更新风机状态基于剩余的最新时间线事件
+        update_turbine_status_from_timeline(db, turbine_id)
         
         return {"message": "时间线事件已删除"}
         
@@ -461,13 +468,14 @@ async def update_timeline_from_log(
         existing_event = db.query(TimelineEvent).filter(
             TimelineEvent.turbine_id == expert_log.turbine_id,
             TimelineEvent.event_time == event_data['event_time'],
-            TimelineEvent.event_type == event_data['event_type']
+            TimelineEvent.event_severity == event_data['event_severity']
         ).first()
         
         if existing_event:
             # 更新现有事件
             existing_event.title = event_data['title']
             existing_event.summary = event_data['summary']
+            existing_event.detail = event_data.get('detail')
             existing_event.key_points = event_data['key_points']
             existing_event.confidence_score = event_data['confidence_score']
             existing_event.event_severity = event_data['event_severity']
@@ -492,10 +500,10 @@ async def update_timeline_from_log(
             new_event = TimelineEvent(
                 turbine_id=expert_log.turbine_id,
                 event_time=event_data['event_time'],
-                event_type=event_data['event_type'],
                 event_severity=event_data['event_severity'],
                 title=event_data['title'],
                 summary=event_data['summary'],
+                detail=event_data.get('detail'),
                 key_points=event_data['key_points'],
                 confidence_score=event_data['confidence_score']
             )
@@ -565,7 +573,6 @@ async def batch_update_turbine_timeline(
             event = TimelineEvent(
                 turbine_id=turbine_id,
                 event_time=event_data['event_time'],
-                event_type=event_data['event_type'],
                 event_severity=event_data['event_severity'],
                 title=event_data['title'],
                 summary=event_data['summary'],
@@ -636,7 +643,6 @@ async def batch_update_all_timelines(
                     event = TimelineEvent(
                         turbine_id=turbine_id,
                         event_time=event_data['event_time'],
-                        event_type=event_data['event_type'],
                         event_severity=event_data['event_severity'],
                         title=event_data['title'],
                         summary=event_data['summary'],
@@ -1005,7 +1011,7 @@ async def batch_verify_timeline_events(
 async def batch_delete_timeline_events(
     event_ids: List[str],
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_admin_user)
 ):
     """
     批量删除时间线事件
@@ -1097,10 +1103,10 @@ async def create_timeline_event(
         new_event = TimelineEvent(
             turbine_id=event_data.turbine_id,
             event_time=event_data.event_time,
-            event_type=event_data.event_type,
             event_severity=event_data.event_severity,
             title=event_data.title,
             summary=event_data.summary,
+            detail=event_data.detail,
             key_points=event_data.key_points,
             confidence_score=event_data.confidence_score,
             is_verified=False  # 新创建的事件默认未验证
@@ -1121,6 +1127,9 @@ async def create_timeline_event(
         db.commit()
         db.refresh(new_event)
         
+        # 更新风机状态基于最新时间线事件
+        update_turbine_status_from_timeline(db, str(new_event.turbine_id))
+        
         # 获取源记录信息
         source_logs = []
         for source in new_event.source_logs:
@@ -1137,10 +1146,10 @@ async def create_timeline_event(
             event_id=str(new_event.event_id),
             turbine_id=str(new_event.turbine_id),
             event_time=new_event.event_time,
-            event_type=new_event.event_type,
             event_severity=new_event.event_severity,
             title=new_event.title,
             summary=new_event.summary,
+            detail=new_event.detail,
             key_points=new_event.key_points or [],
             confidence_score=float(new_event.confidence_score) if new_event.confidence_score else None,
             is_verified=new_event.is_verified,
@@ -1155,4 +1164,108 @@ async def create_timeline_event(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"创建事件失败: {str(e)}"
+        )
+
+@router.post("/batch-update-turbine-status")
+async def batch_update_turbine_status(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin_user)
+):
+    """
+    批量更新所有风机状态基于最新时间线事件（仅管理员可用）
+    """
+    try:
+        result = batch_update_all_turbine_status(db)
+        
+        return {
+            "message": "批量更新风机状态完成",
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Error batch updating turbine status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"批量更新风机状态失败: {str(e)}"
+        )
+
+# ==================== AI内容生成功能 ====================
+
+@router.post("/generate-ai-content")
+async def generate_ai_content_for_event(
+    request: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_admin_or_expert_for_user_management)
+):
+    """
+    为时间线事件生成AI内容（摘要和详细内容）
+    
+    Args:
+        request: 包含以下字段的字典
+            - turbine_id: 风机ID
+            - content: 提取的内容文本
+            - title: 事件标题（可选）
+    """
+    try:
+        # 验证请求参数
+        turbine_id = request.get('turbine_id')
+        content = request.get('content', '').strip()
+        title = request.get('title', '')
+        
+        if not turbine_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="缺少风机ID"
+            )
+        
+        if not content:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="缺少内容文本"
+            )
+        
+        # 验证风机是否存在
+        turbine = db.query(Turbine).filter(Turbine.turbine_id == turbine_id).first()
+        if not turbine:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="风机不存在"
+            )
+        
+        # 初始化AI服务
+        ai_service = TimelineAIService(db)
+        
+        # 分类事件严重程度
+        event_severity = ai_service.classify_event_severity(content)
+        
+        # 生成AI摘要、详细内容和关键点
+        ai_title, summary, detail, key_points, confidence = await ai_service._generate_event_summary(
+            content, 
+            event_severity
+        )
+        
+        # 如果没有提供标题，使用AI生成的标题
+        if not title.strip():
+            title = ai_title
+        
+        return {
+            "success": True,
+            "data": {
+                "title": title,
+                "summary": summary,
+                "detail": detail,
+                "key_points": key_points,
+                "event_severity": event_severity.value,
+                "confidence_score": confidence
+            },
+            "message": "AI内容生成成功"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating AI content: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI内容生成失败: {str(e)}"
         )

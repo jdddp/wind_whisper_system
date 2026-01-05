@@ -1,0 +1,126 @@
+# ============================================================================
+# Wind Whisper RAG System - Docker Compose 配置文件
+# ============================================================================
+# 
+# 功能描述：
+#   - 风语RAG系统的容器化部署配置
+#   - 集成PostgreSQL数据库、pgvector扩展和AI模型服务
+#   - 支持GPU加速和数据持久化
+# 
+# 使用方式：
+#   启动服务：docker-compose up -d
+#   停止服务：docker-compose down
+#   查看日志：docker-compose logs -f
+#   重建服务：docker-compose up --build -d
+# 
+# 环境要求：
+#   - Docker Engine 20.10+
+#   - Docker Compose 2.0+
+#   - NVIDIA Docker Runtime (GPU支持)
+#   - 至少4GB可用内存
+# 
+# 网络访问：
+#   - Web界面：http://localhost:8004
+#   - API接口：http://localhost:8004/api
+#   - 健康检查：http://localhost:8004/health
+# 
+# 作者：Wind Whisper Team
+# 版本：v1.0.0
+# 更新：2024-01-01
+# ============================================================================
+
+# Docker Compose版本声明
+# 使用3.3版本以支持GPU资源配置和现代容器特性
+version: '3.3'
+
+# ============================================================================
+# 服务定义 - 定义系统中的各个容器服务
+# ============================================================================
+services:
+  # ----------------------------------------------------------------------------
+  # 主应用服务 - Wind Whisper RAG系统核心服务
+  # ----------------------------------------------------------------------------
+  app:
+    # 镜像配置 - 使用包含PostgreSQL外部访问配置的镜像
+    image: wind-whisper-rag:latest-with-postgres-external-access
+    
+    # 容器名称 - 便于管理和日志查看
+    container_name: wind-whisper-rag-debug
+    
+    # 启动命令 - 覆盖镜像默认启动行为，明确控制启动流程
+    command: >
+      bash -c "
+        # 设置数据库环境变量
+        export DATABASE_URL='postgresql://postgres:postgres123@localhost:5432/wind_whisper_rag' &&
+        
+        # 启动PostgreSQL数据库
+        service postgresql start &&
+        
+        # 等待数据库启动
+        sleep 5 &&
+        
+        # 初始化管理员用户
+        cd /app && python3 scripts/init_admin.py &&
+        
+        # 启动FastAPI应用
+        cd /app && uvicorn main:app --host 0.0.0.0 --port 8003
+      "
+    
+    # 端口映射 - 将容器内部端口映射到主机端口
+    # 格式：主机端口:容器端口
+    ports:
+      - "8004:8003"  # Web服务端口：主机8004 -> 容器8003
+      - "5432:5432"  # PostgreSQL服务端口：主机5432 -> 容器5432
+
+    
+    # 环境变量文件 - 从.env文件加载配置
+    env_file:
+      - .env
+    
+    # 环境变量配置 - 应用运行时的配置参数
+    environment:
+      # JWT密钥 - 用于用户认证和会话管理（生产环境请修改）
+      - JWT_SECRET_KEY=your-secret-key-change-in-production
+      
+      # OpenAI API配置 - 支持从主机环境变量读取
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}                    # API密钥
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}  # API基础URL
+      
+    # 数据卷映射 - 实现数据持久化和代码同步
+    volumes:
+      # 文件上传目录 - 用户上传的文档和附件
+      - ./data/attachments:/app/data/attachments
+      
+      # 日志目录 - 应用运行日志
+      - ./logs:/app/logs
+      
+      
+      # 代码映射 - 开发模式下的实时代码同步
+      # 生产环境建议移除此映射以提高安全性
+      - .:/app
+      
+      # PostgreSQL配置文件映射 - 自定义数据库配置
+      # - ./postgre-config/postgresql.conf:/etc/postgresql/14/main/postgresql.conf
+      # - ./postgre-config/pg_hba.conf:/etc/postgresql/14/main/pg_hba.conf
+      
+      # PostgreSQL数据持久化 - 使用命名卷确保数据安全
+      - postgres_data:/var/lib/postgresql/14/main
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: all
+              device_ids: ['0', '1']
+              capabilities: [gpu]
+    
+    # 重启策略 - 容器异常退出时自动重启（除非手动停止）
+    restart: unless-stopped
+
+# ============================================================================
+# 数据卷定义 - 持久化存储配置
+# ============================================================================
+volumes:
+  # PostgreSQL数据卷 - 确保数据库数据在容器重启后保持
+  postgres_data:
+    driver: local  # 使用本地存储驱动

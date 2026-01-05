@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from models import get_db, User, Turbine
 from schemas.turbine import TurbineCreate, TurbineUpdate, TurbineResponse
-from utils.dependencies import get_current_user, get_current_admin_user, get_current_admin_or_expert_for_user_management
+from utils.dependencies import get_current_user, get_current_admin_user, get_current_expert_or_admin_user
 
 router = APIRouter()
 
@@ -11,7 +11,7 @@ router = APIRouter()
 async def create_turbine(
     turbine: TurbineCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_or_expert_for_user_management)
+    current_user: User = Depends(get_current_expert_or_admin_user)
 ):
     """创建风机（管理员和专家可用）"""
     # 检查是否已存在相同的风机
@@ -108,7 +108,7 @@ async def update_turbine(
     turbine_id: str,
     turbine_update: TurbineUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_or_expert_for_user_management)
+    current_user: User = Depends(get_current_expert_or_admin_user)
 ):
     """更新风机信息（管理员和专家可用）"""
     turbine = db.query(Turbine).filter(Turbine.turbine_id == turbine_id).first()

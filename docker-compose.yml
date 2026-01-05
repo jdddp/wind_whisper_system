@@ -3,10 +3,9 @@
 # ============================================================================
 # 
 # 功能描述：
-#   - 定义风语RAG系统的容器化部署配置
+#   - 风语RAG系统的容器化部署配置
 #   - 集成PostgreSQL数据库、pgvector扩展和AI模型服务
 #   - 支持GPU加速和数据持久化
-#   - 提供开发和生产环境的统一部署方案
 # 
 # 使用方式：
 #   启动服务：docker-compose up -d
@@ -64,7 +63,7 @@ services:
         cd /app && python3 scripts/init_admin.py &&
         
         # 启动FastAPI应用
-        cd /app && uvicorn main:app --host 0.0.0.0 --port 8003 --reload
+        cd /app && uvicorn main:app --host 0.0.0.0 --port 8003
       "
     
     # 端口映射 - 将容器内部端口映射到主机端口
@@ -87,10 +86,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}                    # API密钥
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}  # API基础URL
       
-      # NVIDIA GPU配置 - 启用GPU加速支持
-      - NVIDIA_VISIBLE_DEVICES=all                           # 使用所有可用GPU
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility           # GPU功能权限
-    
     # 数据卷映射 - 实现数据持久化和代码同步
     volumes:
       # 文件上传目录 - 用户上传的文档和附件
@@ -99,9 +94,6 @@ services:
       # 日志目录 - 应用运行日志
       - ./logs:/app/logs
       
-      # AI模型文件映射（可选）- 用于本地模型文件更新
-      # 取消注释以启用本地模型文件映射
-      # - ./ai_models:/app/ai_models
       
       # 代码映射 - 开发模式下的实时代码同步
       # 生产环境建议移除此映射以提高安全性
@@ -111,26 +103,23 @@ services:
       # - ./postgre-config/postgresql.conf:/etc/postgresql/14/main/postgresql.conf
       # - ./postgre-config/pg_hba.conf:/etc/postgresql/14/main/pg_hba.conf
       
-      # PostgreSQL数据持久化 - 使用命名卷确保数据安全
-      - postgres_data:/var/lib/postgresql/14/main
-    
-    # GPU资源配置 - 为AI模型推理分配GPU资源
-    # 注释掉GPU配置以避免兼容性问题
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia      # NVIDIA GPU驱动
-    #           count: all          # 使用所有可用GPU
-    #           capabilities: [gpu] # GPU计算能力
+      # PostgreSQL数据持久化 - 使用本地目录映射，方便直接rsync备份
+      - ./pg_data:/var/lib/postgresql/14/main
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              # count: all
+              device_ids: ['0', '1']
+              capabilities: [gpu]
     
     # 重启策略 - 容器异常退出时自动重启（除非手动停止）
     restart: unless-stopped
 
 # ============================================================================
-# 数据卷定义 - 持久化存储配置
+# 数据卷定义 - 移除命名卷，改用本地目录映射
 # ============================================================================
-volumes:
-  # PostgreSQL数据卷 - 确保数据库数据在容器重启后保持
-  postgres_data:
-    driver: local  # 使用本地存储驱动
+# volumes:
+#   postgres_data:
+#     driver: local

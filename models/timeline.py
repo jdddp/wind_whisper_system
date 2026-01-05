@@ -1,32 +1,10 @@
 import uuid
-import enum
 from sqlalchemy import Column, String, Text, DateTime, Enum, ForeignKey, JSON, Numeric, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
-
-class EventType(str, enum.Enum):
-    """事件类型枚举"""
-    NORMAL = "NORMAL"              # 正常事件
-    ALARM = "ALARM"                # 告警事件
-    WATCH = "WATCH"                # 观察事件
-    MAINTENANCE = "MAINTENANCE"     # 维护事件
-    FAULT = "FAULT"                # 故障事件
-    INSPECTION = "INSPECTION"       # 检查事件
-    REPAIR = "REPAIR"              # 修理事件
-    UPGRADE = "UPGRADE"            # 升级事件
-    MONITORING = "MONITORING"       # 监控事件
-    UNKNOWN = "UNKNOWN"            # 未知事件
-    OTHER = "OTHER"                # 其他事件
-
-class EventSeverity(str, enum.Enum):
-    """事件严重程度"""
-    NORMAL = "NORMAL"
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
-    CRITICAL = "CRITICAL"
+from .enums import TurbineStatus
 
 class TimelineEvent(Base):
     """风机时间线事件表"""
@@ -37,12 +15,12 @@ class TimelineEvent(Base):
     
     # 事件基本信息
     event_time = Column(DateTime(timezone=True), nullable=False)  # AI提取的事件发生时间
-    event_type = Column(Enum(EventType), nullable=False)
-    event_severity = Column(Enum(EventSeverity), default=EventSeverity.LOW)
+    event_severity = Column(Enum(TurbineStatus), default=TurbineStatus.NORMAL)
     
     # AI生成的内容
     title = Column(String(200), nullable=False)  # AI生成的事件标题
     summary = Column(Text, nullable=False)       # AI生成的事件摘要
+    detail = Column(Text)                        # AI生成的事件详细内容
     key_points = Column(JSON)                    # 关键要点列表
     
     # 元数据

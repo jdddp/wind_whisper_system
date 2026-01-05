@@ -416,42 +416,6 @@ async def upload_attachment(
     db.commit()
     db.refresh(attachment)
     
-    # 异步提取文本内容
-    text_extracted = False
-    try:
-        text_service = TextExtractionService()
-        extracted_text = await text_service.extract_text(str(file_path), file.content_type)
-        
-        if extracted_text:
-            attachment.extracted_text = extracted_text
-            db.commit()
-            db.refresh(attachment)
-            text_extracted = True
-            
-            # 如果提取到文本内容，更新专家记录的内容并重新处理嵌入
-            try:
-                expert_log = db.query(ExpertLog).filter(ExpertLog.log_id == log_id).first()
-                if expert_log:
-                    # 将附件文本添加到专家记录内容中
-                    attachment_content = f"\n\n[附件: {file.filename}]\n{extracted_text}"
-                    if expert_log.description_text:
-                        expert_log.description_text += attachment_content
-                    else:
-                        expert_log.description_text = attachment_content.strip()
-                    
-                    db.commit()
-                    
-                    # 重新处理RAG嵌入
-                    rag_service = RAGService(db)
-                    await rag_service.process_expert_log(int(log_id))
-                    
-            except Exception as rag_error:
-                print(f"RAG processing failed for log {log_id}: {str(rag_error)}")
-                
-    except Exception as e:
-        # 文本提取失败不影响文件上传
-        print(f"Text extraction failed for {file.filename}: {str(e)}")
-    
     return {
         "attachment_id": str(attachment.attachment_id),
         "file_name": attachment.file_name,
@@ -562,12 +526,26 @@ async def upload_attachments_batch(
                     db.commit()
                     
             except Exception as e:
-                print(f"Text extraction failed for {file.filename}: {str(e)}")
+                error_msg = str(e)
+                print(f"Text extraction failed for {file.filename}: {error_msg}")
+                # 在批量上传中，文本提取失败不影响文件上传成功
+                # 用户可以稍后单独触发文本提取
                 
         except Exception as e:
+            error_msg = str(e)
+            # 提供更友好的错误信息
+            if "Permission denied" in error_msg:
+                error_detail = "文件访问权限不足"
+            elif "No space left" in error_msg:
+                error_detail = "服务器存储空间不足"
+            elif "filename too long" in error_msg.lower():
+                error_detail = "文件名过长"
+            else:
+                error_detail = f"上传失败: {error_msg}"
+                
             failed_uploads.append({
                 "file_name": file.filename,
-                "error": str(e)
+                "error": error_detail
             })
     
     # 如果有成功上传的文件，重新处理RAG嵌入
@@ -706,6 +684,126 @@ async def download_attachment(
         filename=attachment.file_name,
         media_type=attachment.file_type or 'application/octet-stream'
     )
+
+@router.post("/attachments/{attachment_id}/extract-content")
+async def extract_attachment_content(
+    attachment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """提取附件的文本内容"""
+    # 验证附件是否存在
+    attachment = db.query(Attachment).filter(Attachment.attachment_id == attachment_id).first()
+    if not attachment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Attachment not found"
+        )
+    
+    # 验证用户是否有权限访问该附件
+    expert_log = db.query(ExpertLog).filter(ExpertLog.log_id == attachment.log_id).first()
+    if not expert_log:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expert log not found"
+        )
+    
+    # READER用户只能提取已发布记录的附件内容
+    if current_user.role == UserRole.READER and expert_log.log_status != LogStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    # 如果已经有提取的文本，直接返回
+    if attachment.extracted_text:
+        return {
+            "attachment_id": str(attachment.attachment_id),
+            "file_name": attachment.file_name,
+            "extracted_text": attachment.extracted_text,
+            "ai_excerpt": attachment.ai_excerpt
+        }
+    
+    # 如果没有提取的文本，尝试提取
+    try:
+        # 检查文件是否存在
+        if not os.path.exists(attachment.storage_path):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="文件在服务器上不存在"
+            )
+        
+        # 提取文本内容
+        text_extraction_service = TextExtractionService()
+        extracted_text = await text_extraction_service.extract_text(attachment.storage_path, attachment.file_type)
+        
+        if extracted_text:
+            # 保存提取的文本到数据库
+            attachment.extracted_text = extracted_text
+            
+            # 生成AI摘要
+            try:
+                ai_excerpt = await generate_ai_excerpt(extracted_text)
+                attachment.ai_excerpt = ai_excerpt
+            except Exception as e:
+                print(f"Failed to generate AI excerpt: {str(e)}")
+            
+            db.commit()
+            
+            return {
+                "attachment_id": str(attachment.attachment_id),
+                "file_name": attachment.file_name,
+                "extracted_text": extracted_text,
+                "ai_excerpt": attachment.ai_excerpt
+            }
+        else:
+            # 检查文件类型是否支持
+            supported_types = {
+                'application/pdf': 'PDF文档',
+                'text/plain': '纯文本文件',
+                'application/msword': 'Word文档',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word文档',
+                'application/vnd.ms-excel': 'Excel文档',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel文档'
+            }
+            
+            if attachment.file_type not in supported_types:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"不支持的文件类型: {attachment.file_type}。支持的类型包括：PDF、Word、Excel、纯文本文件"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="文件内容为空或无法提取文本内容，请检查文件是否损坏"
+                )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Failed to extract text from attachment {attachment_id}: {error_msg}")
+        
+        # 根据错误类型提供更具体的错误信息
+        if "There is no item named" in error_msg or "archive" in error_msg.lower():
+            detail = "文件已损坏或格式不正确，无法读取内容"
+        elif "Permission denied" in error_msg:
+            detail = "文件访问权限不足"
+        elif "No such file" in error_msg:
+            detail = "文件不存在"
+        elif "not available" in error_msg.lower() or "module" in error_msg.lower():
+            detail = "缺少必要的文本提取库，请联系管理员"
+        elif "password" in error_msg.lower() or "encrypted" in error_msg.lower():
+            detail = "文件已加密，无法提取内容"
+        elif "timeout" in error_msg.lower():
+            detail = "文件处理超时，请尝试较小的文件"
+        else:
+            detail = f"文本提取失败: {error_msg}"
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=detail
+        )
 
 @router.post("/{log_id}/analyze")
 async def trigger_ai_analysis(

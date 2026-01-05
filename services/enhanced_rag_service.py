@@ -288,9 +288,9 @@ class EnhancedRAGService(RAGService):
         if "故障" in question or "异常" in question:
             filters["status"] = ["Fault", "Error"]
         elif "正常" in question:
-            filters["status"] = "Normal"
+            filters["status"] = "NORMAL"
         elif "维护" in question:
-            filters["status"] = ["Maintenance", "Watch"]
+            filters["status"] = ["MAINTENANCE", "WATCH"]
         
         # 风场过滤 (简单的关键词匹配)
         farm_keywords = ["风场", "风电场"]

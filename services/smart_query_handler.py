@@ -283,10 +283,10 @@ class SmartQueryHandler:
         # 状态过滤
         if "status" in entities:
             status_map = {
-                "watch": "Watch",
-                "normal": "Normal", 
-                "fault": "Fault",
-                "maintenance": "Maintenance"
+                "watch": "WATCH",
+                "normal": "NORMAL", 
+                "fault": "FAULT",
+                "maintenance": "MAINTENANCE"
             }
             status = status_map.get(entities["status"], entities["status"])
             query = query.filter(Turbine.status == status)
