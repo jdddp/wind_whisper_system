@@ -87,7 +87,7 @@ Missing argument in printf at /usr/bin/pg_lsclusters line 131.
  * Starting PostgreSQL 14 database server
  * Error: The cluster is owned by user id 1002 which does not exist
 
- 需要给./pd_data 赋权，先查看一下：
+ 需要给./pd_data 赋权，先查看一下容器内部数据库的useid：
  '''
  (base) jzp@txkj:/home/suanfa-2/jzp/wind_whisper_rag_system$ docker run --rm --entrypoint bash wind-whisper-rag:latest-with-postgres-external-access -c "id -u postgres"
 '''
@@ -98,8 +98,6 @@ sudo chown -R 101:101 ./pd_data
 
 docker-compose up -d
 ~~~
-
-
 
 ## 使用指南
 
