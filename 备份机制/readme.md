@@ -9,7 +9,7 @@ ssh-copy-id backup@192.168.**.**
 原本的sql文件虽然做了docker本地化，但是不够显式，不方便备份，将其拷贝到./pg_data，采用本地化指定目录挂载的方式更方便备份。本次做完后，后续无需此步骤
 
 ~~~bash
-(pytorch) jzp@txkj-SYS-7048GR-TR:/home/suanfa-3/jzp/0001_develop/000_blade/aaa_tmpwork/福建中闽$ docker volume inspect wind_whisper_rag_system-debug_postgres_data
+(pytorch) /path/to/proj$ docker volume inspect wind_whisper_rag_system-debug_postgres_data
 [
     {
         "CreatedAt": "2025-09-23T09:27:57+08:00",

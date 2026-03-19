@@ -61,14 +61,7 @@ sudo python3 ./备份机制/backup_rsync.py > ./logs/backup_rsync.log &
 #### 备份后验证
 ~~~bash
 '''
-1 33服务器作为备份目标（借助33的已有备份机制）
-2 33服务器上的备份目录：/home/raid5/data_80suanfa/P2401002-风机监测产品项目/JZP/姜志鹏交接内容/2风机产线/4产线琐事/2风机专家知识管理平台
-
-3 33服务器内核版本过低，因此将备份后的文件夹拷贝到50服务器上进行验证：
-jzp@FT:/home/raid5/data_80suanfa/P2401002-风机监测产品项目/JZP/姜志鹏交接内容/2风机产线/4产线琐事/2风机专家知识管理平台$ scp -r wind_whisper_rag_system jzp@192.168.3.50:/home/suanfa-2/jzp 
-
-
-4 50版本docker compose版本不一致，注销docker-compose.yml内的指定gpu设置
+1 备份服务器版本docker compose版本不一致，注销docker-compose.yml内的指定gpu设置
 deploy:
       resources:
         reservations:
@@ -82,14 +75,14 @@ deploy:
 docker-compose up -d
 
 '''
-打开日志发现报错，因为备份用的jzp账户，docker内部的数据库不存在这个权限，赋权即可：
+打开日志发现报错，因为备份用的账户，docker内部的数据库不存在这个权限，赋权即可：
 Missing argument in printf at /usr/bin/pg_lsclusters line 131.
  * Starting PostgreSQL 14 database server
  * Error: The cluster is owned by user id 1002 which does not exist
 
  需要给./pd_data 赋权，先查看一下容器内部数据库的useid：
  '''
- (base) jzp@txkj:/home/suanfa-2/jzp/wind_whisper_rag_system$ docker run --rm --entrypoint bash wind-whisper-rag:latest-with-postgres-external-access -c "id -u postgres"
+ (base) /path/to/wind_whisper_rag_system$ docker run --rm --entrypoint bash wind-whisper-rag:latest-with-postgres-external-access -c "id -u postgres"
 '''
 返回101
 '''
@@ -162,7 +155,6 @@ docker-compose up -d
   - 支持富文本编辑，可插入图片、音频等多媒体内容
   - 记录状态管理（提交→生成关联时间线事件->二次修改->发布），确保内容质量
 
-  
 - **RAG智能问答**: （做的不行）
   - 基于历史专家记录的智能问答系统
   - 支持自然语言查询，如"某型号风机常见故障有哪些？"
@@ -204,31 +196,13 @@ docker-compose up -d
         - 风机、专家记录、时间线事件等
     - 用户
       只读：驾驶舱、RAG问答、时间线
-  
-- **系统监控面板**: 
-  - 实时系统状态监控（CPU、内存、磁盘使用率）
-  - 业务指标统计（记录数量、用户活跃度、查询频次）
-  - 性能指标监控（响应时间、错误率、并发数）
-  - 告警通知和异常处理机制
 
 ### 🤖 AI智能增强功能
 - **自动内容分析**: 
   - AI自动生成记录摘要，提取关键信息
   - 智能标签提取，自动识别故障类型、严重程度、处理方案
-  - 情感分析，识别记录中的紧急程度和重要性
   - 内容质量评估，提供改进建议
   
-- **智能推荐系统**: 
-  - 基于用户行为的个性化内容推荐
-  - 相似案例推荐，帮助快速找到解决方案
-  - 专家推荐，匹配最适合的专家资源
-  - 学习路径推荐，为新手提供系统性学习建议
-  
-- **预测性分析**: 
-  - 基于历史数据的故障预测
-  - 维护周期优化建议
-  - 风机性能趋势分析
-  - 异常模式识别和早期预警
 
 ## 🏗️ 技术架构
 
@@ -240,32 +214,12 @@ docker-compose up -d
 
 ### 🔧 后端技术栈
 - **FastAPI** (v0.104+): 
-  - 现代化的Python异步Web框架
-  - 自动生成OpenAPI文档，支持交互式API测试
-  - 内置数据验证和序列化，提高开发效率
-  - 高性能异步处理，支持WebSocket实时通信
   
 - **SQLAlchemy** (v2.0+): 
-  - Python最强大的ORM框架
-  - 支持复杂查询和事务管理
-  - 数据库连接池管理，优化性能
-  - 支持多数据库适配和迁移
   
 - **PostgreSQL** (v12+): 
-  - 企业级开源关系型数据库
-  - 强大的JSON支持，适合半结构化数据
   
 - **pgvector** (v0.5+): 
-  - PostgreSQL向量数据库扩展
-  - 支持高维向量存储和相似度搜索
-  - 内置多种距离算法（欧几里得、余弦、内积）
-  - 索引优化，支持大规模向量检索
-  
-<!-- - **Alembic**: 
-  - SQLAlchemy官方数据库迁移工具
-  - 版本化数据库schema管理
-  - 支持自动生成迁移脚本
-  - 回滚和前滚操作，确保部署安全 -->
 
 ### 🤖 AI/ML技术栈
 - **Sentence Transformers** (v2.2+): 
@@ -277,25 +231,6 @@ docker-compose up -d
   - 支持文本生成、摘要、问答等任务
   - 可配置的API参数，控制输出质量
   - 支持流式输出，提升用户体验 -->
-
-### 🎨 前端技术栈
-- **Bootstrap 5** (v5.3+): 
-  - 响应式UI组件库
-  - 移动优先的设计理念
-  - 丰富的组件和工具类
-  - 支持主题定制和暗色模式
-  
-- **Vanilla JavaScript** (ES6+): 
-  - 原生JavaScript，无框架依赖
-  - 现代ES6+语法，代码简洁高效
-  - 异步编程支持，优化用户体验
-  - 模块化开发，便于维护
-  
-- **Bootstrap Icons** (v1.11+): 
-  - 官方图标库，风格统一
-  - SVG格式，支持自定义样式
-  - 丰富的图标选择，覆盖常用场景
-  - 轻量级，加载速度快
 
 ### 🔄 系统架构图
 ```
@@ -334,12 +269,4 @@ wind_whisper_rag_system/
 3. 在 `api/` 中实现路由
 4. 在 `services/` 中实现业务逻辑
 
-<!-- ### 数据库迁移
-```bash
-# 生成迁移文件
-alembic revision --autogenerate -m "描述"
-
-# 执行迁移
-alembic upgrade head
-``` -->
 
